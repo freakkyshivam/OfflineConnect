@@ -1,0 +1,12 @@
+{
+  "name": "offlineconnect-backend",
+  "version": "1.0.0",
+  "description": "OfflineConnect — LAN Chat & Presence Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
