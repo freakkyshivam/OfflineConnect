@@ -7,9 +7,9 @@
 
 ## 1. Overview
 
-OfflineConnect is a chat application that lets any device on the same local network find each other automatically and start messaging — no manual IP entry, no internet dependency, no external server required. "Local network" here means any network the devices happen to share: a wired LAN (like the college classroom), a WiFi router (like a home network), or a shared mobile hotspot. The discovery and messaging logic doesn't care which of these it's running on — it works the same way as long as devices are on the same subnet. The idea came from a simple observation: the class doesn't have many people comfortable with backend work, so the project needs to be technically solid in one place rather than spread thin across features nobody can maintain.
+OfflineConnect is a chat application that lets any device on the same local network find each other automatically and start messaging — no manual IP entry, no internet dependency, no external server required. "Local network" here means any network the devices happen to share: a wired LAN (like a college classroom), a WiFi router (like a home network), or a shared mobile hotspot. The discovery and messaging logic doesn't care which of these it's running on — it works the same way as long as devices are on the same subnet.
 
-The project is being built for the college networking course, with a mentor assigned. It is designed to double as a demonstration of real-time systems and socket programming, which is a gap in the existing project portfolio (mostly REST APIs and queue-based systems so far).
+The project is built for a college networking course, with a mentor assigned. It is designed to demonstrate real-time systems and socket programming — peer discovery, presence detection, and direct messaging — as practical applications of core networking concepts.
 
 ## 2. Problem Statement
 
@@ -23,7 +23,7 @@ OfflineConnect solves this by using whatever local network is already present fo
 - Let any two discovered devices exchange messages in real time.
 - Show accurate online/offline presence for everyone discovered.
 - Keep the system usable without any internet connection.
-- Build it so the workload can be split across a group with uneven coding experience.
+- Structure the codebase with a clean separation between backend and frontend so responsibilities can be divided across the team.
 
 ## 4. Non-Goals (Out of Scope for v1)
 
@@ -75,34 +75,44 @@ Before writing the core application, the discovery mechanism was validated direc
 | Chat UI | Contact list, message window, status indicators | Frontend |
 | Connection Handling | Graceful handling of a peer disconnecting mid-chat | Backend/Networking |
 
-### 7.2 Extended Features (if core is stable with time to spare)
+### 7.2 Implementation Roadmap (Phased)
 
-- Group chat rooms (multiple discovered devices in one conversation)
-- Local message history (stored per-device, not synced to any server)
-- Read receipts / delivery status (sent → delivered)
-- Small file/image attachments inside chat (not a full file-transfer subsystem)
-- Basic notification sound/alert on new message
-- Reconnect handling — a device that drops off the network and rejoins should reappear in discovery automatically
-- Local message encryption (simple symmetric encryption within the LAN) — stretch goal, adds a security angle worth discussing in interviews if time allows
+Features are sequenced in phases so scope stays controlled and each phase is fully working before the next one starts. No new phase begins until the previous one is stable and demoable — this is a deliberate rule, not a suggestion.
 
-> **Note:** extended features are intentionally sequenced after core features and will not be started until discovery, chat, and presence are all working end-to-end. This is a deliberate scope control decision — the team has a history of feature creep, and this document exists partly to prevent that.
+**Phase 1 — Core (must-have for submission)**
+- Auto Discovery (UDP broadcast + presence list)
+- 1:1 Chat (direct TCP messaging)
+- Online/Offline Presence (heartbeat-based)
+
+**Phase 2 — Extended**
+- File Sharing — files up to 30MB, sent as a chunked transfer over TCP with a progress indicator. No resume-on-failure: a failed transfer must be retried from scratch.
+- Group Chat — multiple discovered devices in one conversation
+
+**Phase 3 — Polish**
+- Message History (stored per-device, not synced to any server)
+- Notifications (basic sound/alert on new message)
+- Settings (device name, ports, basic preferences)
+
+**Phase 4 — Packaging & Stretch (not required for submission)**
+- Electron Packaging — installable desktop app
+- Encryption (optional) — simple symmetric encryption within the LAN
+
+> **Note:** Phases 2–4 are intentionally sequenced after Phase 1 is working end-to-end. This is a deliberate scope control decision — the team has a history of feature creep, and this document exists partly to prevent that.
 
 ## 8. Team & Division of Labor
 
-The class has very few members comfortable with backend/networking code, so the split below is designed around that reality rather than an idealized even split.
+- **Backend/Networking** (sockets, discovery, message routing, TCP messaging, file transfer): core implementation.
+- **Frontend/UI** (contact list, chat window, presence indicators): consumes a defined interface/event layer exposed by the backend.
+- **Testing, documentation, and demo preparation**: integration testing, demo script, and submission documentation.
 
-- **Backend/Networking** (sockets, discovery, message routing): primary owner — highest coding load.
-- **Frontend/UI** (contact list, chat window, presence indicators): can be built by a teammate with lighter coding experience, once backend exposes a simple interface/events to hook into.
-- **Testing, documentation, and demo prep**: remaining teammate(s), plus support from backend owner on integration testing.
+Scope is locked with the mentor at project kickoff to avoid uncontrolled feature addition later in the timeline.
 
-Scope will be locked with the mentor in the first meeting to avoid uncontrolled feature addition later in the timeline.
+## 9. Tech Stack
 
-## 9. Tech Stack (proposed)
-
-- Language/runtime: Node.js (existing strength) or Java (if mentor prefers, given course uses Java networking/servlets)
+- Language/runtime: Node.js
 - Networking: raw TCP/UDP sockets — no external chat framework, since the point is to demonstrate the networking layer itself
-- UI: simple web-based interface (localhost) or lightweight desktop UI, kept minimal so frontend teammate isn't blocked
-- Local storage (for extended feature — message history): lightweight local DB (SQLite) or flat file, no external/cloud DB
+- UI: web-based interface served locally (localhost)
+- Local storage (for message history, Phase 3): lightweight local DB (SQLite) or flat file, no external/cloud DB
 
 ## 10. Non-Functional Requirements
 
@@ -119,17 +129,16 @@ This application cannot be deployed to a cloud host (Render, Vercel, etc.) — b
 
 The web app will be run locally (localhost) on each device during development and demoed as-is — no packaging needed for the submission deadline.
 
-### 11.2 For Resume/Portfolio (after submission, not blocking it)
+### 11.2 Phase 4: Desktop Packaging (post-submission)
 
-Once the core app is stable, it will be wrapped with Electron so it can run as an installed desktop app (double-click icon, no browser/localhost needed) rather than remaining resume-worthy only as a local script. A distributable installer (.exe/.dmg) is a stretch goal for portfolio purposes and is explicitly not required for the college submission.
+Once the core app is stable, it will be wrapped with Electron so it can run as an installed desktop app (double-click icon, no browser/localhost needed). A distributable installer (.exe/.dmg) is a Phase 4 item and is explicitly not required for the college submission.
 
 ## 12. Risks & Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Team has limited backend experience | One person carries most of the core logic | Keep UI and backend cleanly separated so non-backend teammates can still contribute meaningfully |
-| Feature creep (combining file-transfer + monitoring + chat, or bundling in a website/installer before the core works) | Scope balloons, nothing finishes properly | Extended features and packaging explicitly deferred until core is done; this PRD is the reference point |
-| Limited time due to other academic commitments | Risk of rushed, untested final submission | Core feature set kept deliberately small and demo-able |
+| Feature creep (combining file-transfer + monitoring + chat, or bundling in a website/installer before the core works) | Scope balloons, nothing finishes properly | Phases 2–4 explicitly deferred until Phase 1 is done; this PRD is the reference point |
+| Timeline pressure from concurrent academic commitments | Risk of rushed, untested final submission | Core feature set kept deliberately small and demo-able |
 | Demo devices connected via a peer's hotspot instead of directly on the network | Client isolation on some phones can block discovery between hotspot-connected devices | Untested — verify before relying on hotspot as a demo path; bring a dedicated router as backup if needed |
 | Security-restricted rooms (e.g. the college security lab) block non-college devices | App won't work in that specific room | Confirmed to be room-specific IT policy; demo will be conducted in the classroom, which was tested and works |
 
@@ -143,6 +152,5 @@ Once the core app is stable, it will be wrapped with Electron so it can run as a
 
 ## 14. Open Questions
 
-- Final tech stack: Node.js or Java — depends on mentor's preference and course alignment.
 - Group size and final role assignment — pending group finalization.
 - Whether hotspot-based connections need to work reliably for the demo, or whether the classroom's tested wired LAN setup will be used instead.
