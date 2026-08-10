@@ -3,10 +3,15 @@
   "version": "1.0.0",
   "description": "OfflineConnect — LAN Chat & Presence Backend",
   "main": "server.js",
+  "module": "module",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
   }
 }
