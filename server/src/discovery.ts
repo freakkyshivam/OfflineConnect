@@ -4,7 +4,6 @@ import { devicesI } from "./types";
 
 import crypto from "node:crypto";
 import os from "node:os";
-import { toBuffer } from "node:ffi";
 
 const TCP_PORT = 8080;
 
@@ -18,7 +17,7 @@ export const startDiscovery = () => {
 
     const presencePacket = {
       type: "PRESENCE",
-      devie_name: os.hostname() ?? "Desktop",
+      device_name: os.hostname() ?? "Desktop",
       sessionId,
       tcpPort: TCP_PORT,
     };
@@ -42,8 +41,8 @@ export const startDiscovery = () => {
 
   socket.on("message", (msg, rinfo) => {
     try {
-
-      const data = JSON.parse(msg);
+ 
+      const data = JSON.parse(msg.toString());
 
       if (data.sessionId == sessionId) {
         return;
@@ -51,11 +50,12 @@ export const startDiscovery = () => {
 
       addDevice({
         sessionId : data.sessionId,
+        name : data.device_name,
         tcpPort : data.tcpPort,
         udpPort : rinfo.port,
         udpAddress : rinfo.address,
         udpFamily : rinfo.family,
-        lastSeen : new Date(),
+        lastSeen : Date.now(),
       })
     } catch (err : any) {
         console.log("Invalid data : ", err.message);
@@ -63,12 +63,12 @@ export const startDiscovery = () => {
   });
 
   setInterval(() => {
-    const now = new Date();
+   const now: number = Date.now();
 
     const  devices = getDevices();
 
-    devices.forEach(device =>{
-        if (now - device.lastSeen > 6000) {
+    devices.forEach((device:devicesI) =>{
+        if (Number(now - device.lastSeen)> 6000) {
       console.log(`${device.sessionId} offline`);
       removeDevice(device.sessionId);
     }

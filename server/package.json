@@ -5,13 +5,14 @@
   "main": "server.js",
   "module": "module",
   "scripts": {
-    "start": "node server.js"
+   "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   }
 }
