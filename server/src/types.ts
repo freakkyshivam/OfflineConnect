@@ -4,7 +4,7 @@ export interface devicesI {
     name : string,
     tcpPort : number,
     udpPort : number,
-    udpAddress : string,
+    ip : string,
     udpFamily : string,
     lastSeen : number
 }
