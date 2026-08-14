@@ -2,7 +2,7 @@ import net from "node:net";
 import { getDevice } from "./deviceStore";
 import { devicesI } from "./types";
 
-export function sendMessageToDevice(sessionId : string, msg : string){
+export function sendMessageToDevice(sessionId : string, msg : any){
     const device:devicesI = getDevice(sessionId);
 
     if(!device){
@@ -10,7 +10,7 @@ export function sendMessageToDevice(sessionId : string, msg : string){
         return;
     }
 
-    const client = net.createConnection({port : device.tcpPort, host : device.udpAddress}, ()=>{
+    const client = net.createConnection({port : device.tcpPort, host : device.ip}, ()=>{
         client.write(msg);
         client.end();
     })
