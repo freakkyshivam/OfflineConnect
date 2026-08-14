@@ -5,9 +5,8 @@ import { devicesI } from "./types";
 import crypto from "node:crypto";
 import os from "node:os";
 
-const TCP_PORT = 8080;
 
-export const startDiscovery = () => {
+export const startDiscovery = (TCP_PORT : number) => {
   const socket = dgram.createSocket("udp4");
 
   const sessionId = crypto.randomUUID();
@@ -53,7 +52,7 @@ export const startDiscovery = () => {
         name : data.device_name,
         tcpPort : data.tcpPort,
         udpPort : rinfo.port,
-        udpAddress : rinfo.address,
+        ip : rinfo.address,
         udpFamily : rinfo.family,
         lastSeen : Date.now(),
       })
