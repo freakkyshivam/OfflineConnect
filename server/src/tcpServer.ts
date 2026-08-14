@@ -1,7 +1,7 @@
 import net from "node:net";
 import { onMessage } from "./index";
 
-export const startTcpServer = (port: Number, msg: string) => {
+export const startTcpServer = (port: number, msg: any) => {
   const server = net.createServer((socket) => {
 
      socket.setEncoding("utf-8");
@@ -19,7 +19,7 @@ export const startTcpServer = (port: Number, msg: string) => {
     });
   });
 
-  server.listen({port, hostname : "0.0.0.0"}, ()=>{
+  server.listen({port, host : "0.0.0.0"}, ()=>{
     console.log(`TCP server listening on ${port}`);
   })
 
