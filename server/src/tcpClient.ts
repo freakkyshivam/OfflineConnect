@@ -2,7 +2,7 @@ import net from "node:net";
 import { getDevice } from "./deviceStore";
 import { devicesI } from "./types";
 
-export function sendMessageTODevice(sessionId : string, msg : string){
+export function sendMessageToDevice(sessionId : string, msg : string){
     const device:devicesI = getDevice(sessionId);
 
     if(!device){
