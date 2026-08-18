@@ -1,17 +1,16 @@
 import net from "node:net";
-import { onMessage } from "./index";
 
-export const startTcpServer = (port: number, msg: any) => {
+export const startTcpServer = (port: number, onMessage: (data: string, socket: net.Socket) => void) => {
   const server = net.createServer((socket) => {
 
      socket.setEncoding("utf-8");
 
-    const clinetId = `${socket.remoteAddress} : ${socket.remotePort}`
+    const clientId = `${socket.remoteAddress}:${socket.remotePort}`;
 
-    console.log("Client connected : ", clinetId);
+    console.log("Client connected : ", clientId);
     
     socket.on("data", (data) => {
-      onMessage(data, socket);
+      onMessage(data as string, socket);
     });
 
     socket.on("error", (err: any) => {

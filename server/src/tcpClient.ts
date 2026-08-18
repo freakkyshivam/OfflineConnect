@@ -2,22 +2,32 @@ import net from "node:net";
 import { getDevice } from "./deviceStore";
 import { devicesI } from "./types";
 
-export function sendMessageToDevice(sessionId : string, msg : any){
-    const device:devicesI = getDevice(sessionId);
+interface ChatMessage {
+  senderName: string;
+  senderSessionId: string;
+  text: string;
+  timestamp: number;
+}
 
-    if(!device){
+export function sendMessageToDevice(sessionId: string, message: ChatMessage) {
+    const device: devicesI = getDevice(sessionId);
+
+    if (!device) {
         console.log("Device not found or offline");
         return;
     }
 
-    const client = net.createConnection({port : device.tcpPort, host : device.ip}, ()=>{
-        client.write(msg);
+    const payload = JSON.stringify({
+        type: "chat",
+        ...message,
+    });
+
+    const client = net.createConnection({ port: device.tcpPort, host: device.ip }, () => {
+        client.write(payload);
         client.end();
-    })
+    });
 
-    client.on('error', (err)=>{
-        console.log(`Failed to reach ${device.name} : `,err.message);
-        
-    })
+    client.on('error', (err) => {
+        console.log(`Failed to reach ${device.name} : `, err.message);
+    });
 }
-
