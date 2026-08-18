@@ -222,6 +222,12 @@ startTcpServer(TCP_PORT, (data: string) => {
     if (msg.type === "chat") {
       console.log(`Message from ${msg.senderName}: ${msg.text}`);
 
+      // Refresh sender's lastSeen timestamp in device store
+      const sender = getDevice(msg.senderSessionId);
+      if (sender) {
+        sender.lastSeen = Date.now();
+      }
+
       // Forward to all browser clients
       broadcast({
         type: "incoming_message",

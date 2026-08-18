@@ -1,27 +1,34 @@
+import { type devicesI } from './types';
 
-import { type devicesI} from './types'
+const discoveredDevices = new Map<string, devicesI>();
 
-const discoveredDevices = new Map();
+// Add or update device
+export function addDevice(device: devicesI) {
+  // Normalize IP
+  const cleanIp = device.ip.replace(/^::ffff:/, '');
+  const normalizedDevice = { ...device, ip: cleanIp };
 
-// add ne w device
-export function addDevice(device : devicesI) {
-  discoveredDevices.set(device.sessionId, device);
+  // Remove any stale session for the exact same IP and TCP port
+  for (const [sessionId, existing] of discoveredDevices.entries()) {
+    if (existing.ip === cleanIp && existing.tcpPort === normalizedDevice.tcpPort && sessionId !== normalizedDevice.sessionId) {
+      discoveredDevices.delete(sessionId);
+    }
+  }
+
+  discoveredDevices.set(normalizedDevice.sessionId, normalizedDevice);
 }
 
-
-// remove device by sessionId
-export function removeDevice(sessionId : string) {
+// Remove device by sessionId
+export function removeDevice(sessionId: string) {
   discoveredDevices.delete(sessionId);
 }
 
-// get device by session id
-export function getDevice(sessionId : string) {
+// Get device by session id
+export function getDevice(sessionId: string): devicesI | undefined {
   return discoveredDevices.get(sessionId);
 }
 
-// get all device
-export function getDevices() {
+// Get all devices
+export function getDevices(): Map<string, devicesI> {
   return discoveredDevices;
 }
-
- 
