@@ -1,6 +1,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 
 import { startDiscovery, getSessionId, setDeviceName, getDeviceName } from "./discovery";
@@ -12,7 +13,7 @@ import { devicesI } from "./types";
 const TCP_PORT = 8080;
 const HTTP_PORT = 3000;
 
-// Static File Server 
+// ─── Static File Server ──────────────────────────────────────────────
 // Serves the client/ folder so the browser can load index.html, styles.css, app.js
 
 const MIME_TYPES: Record<string, string> = {
@@ -26,19 +27,67 @@ const MIME_TYPES: Record<string, string> = {
   ".ico": "image/x-icon",
 };
 
-// client/ is two levels up from server/src/
-const CLIENT_DIR = path.join(process.cwd(), "..", "client");
+// Find the client/ directory using multiple strategies so it works
+// on Windows, Linux, macOS, AND Termux regardless of which folder you run from.
+function findClientDir(): string {
+  const candidates: string[] = [];
+
+  // Strategy 1: relative to THIS source file (most reliable)
+  // server/src/index.ts → ../../client
+  try {
+    const thisFile = fileURLToPath(import.meta.url);
+    const thisDir = path.dirname(thisFile);
+    candidates.push(path.resolve(thisDir, "..", "..", "client"));
+  } catch {}
+
+  // Strategy 2: __dirname (available in CJS mode / tsx)
+  try {
+    if (typeof __dirname !== "undefined") {
+      candidates.push(path.resolve(__dirname, "..", "..", "client"));
+    }
+  } catch {}
+
+  // Strategy 3: relative to cwd (assumes running from server/)
+  candidates.push(path.resolve(process.cwd(), "..", "client"));
+
+  // Strategy 4: relative to cwd (assumes running from project root)
+  candidates.push(path.resolve(process.cwd(), "client"));
+
+  // Pick the first one that actually exists and contains index.html
+  for (const dir of candidates) {
+    try {
+      if (fs.existsSync(path.join(dir, "index.html"))) {
+        return dir;
+      }
+    } catch {}
+  }
+
+  // Fallback: log all candidates so the user can debug
+  console.error("Could not find client/ directory. Searched:");
+  candidates.forEach((c) => console.error("  -", c));
+  return candidates[0] || path.resolve(process.cwd(), "client");
+}
+
+const CLIENT_DIR = findClientDir();
+console.log(`Static files: ${CLIENT_DIR}`);
 
 const httpServer = http.createServer((req, res) => {
   let urlPath = req.url === "/" ? "/index.html" : (req.url || "/index.html");
 
-  // Strip query strings
-  urlPath = urlPath.split("?")[0]!;
+  // Strip query strings and hash
+  urlPath = urlPath.split("?")[0] || "/index.html";
+  urlPath = urlPath.split("#")[0] || "/index.html";
+
+  // Decode URI components (%20 → space, etc.)
+  try {
+    urlPath = decodeURIComponent(urlPath);
+  } catch {}
 
   const fullPath = path.resolve(path.join(CLIENT_DIR, urlPath));
 
   // Security: prevent directory traversal
   if (!fullPath.startsWith(path.resolve(CLIENT_DIR))) {
+    console.log(`[403] ${urlPath} (directory traversal blocked)`);
     res.writeHead(403);
     res.end("Forbidden");
     return;
@@ -49,11 +98,17 @@ const httpServer = http.createServer((req, res) => {
 
   fs.readFile(fullPath, (err, data) => {
     if (err) {
+      console.log(`[404] ${urlPath} → ${fullPath}`);
       res.writeHead(404);
       res.end("Not found");
       return;
     }
-    res.writeHead(200, { "Content-Type": contentType });
+    console.log(`[200] ${urlPath} (${contentType})`);
+    res.writeHead(200, {
+      "Content-Type": contentType,
+      "Cache-Control": "no-cache",
+      "Access-Control-Allow-Origin": "*",
+    });
     res.end(data);
   });
 });
