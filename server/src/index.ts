@@ -129,7 +129,7 @@ function broadcast(data: object) {
 }
 
 function buildDeviceArray() {
-  const devices = getDevices();
+  const devices = getDevices();  
   const list: object[] = [];
   devices.forEach((device: devicesI) => {
     list.push({
