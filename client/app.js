@@ -30,10 +30,10 @@
     ws = new WebSocket(`${protocol}//${host}`);
 
     ws.onopen = function () {
-      console.log("[WS] Connected to server");
+      console.log("[WS] Connected to backend server");
       showConnectionStatus(true);
 
-      // Register name with backend if already stored
+      // Register display name with backend
       const savedName = localStorage.getItem(STORAGE_KEY);
       if (savedName) {
         send({ type: "set_name", name: savedName });
@@ -111,63 +111,54 @@
         break;
 
       case "message_sent":
-        handleMessageSent(msg);
+        // Acknowledgment from backend
+        console.log("[Message] Sent successfully to:", msg.to);
         break;
     }
   }
 
   function handleIncomingMessage(msg) {
+    console.log("[Chat] Incoming message:", msg);
     const senderSessionId = msg.from.sessionId;
-    const senderName = msg.from.name || "Unknown";
+    const senderName = msg.from.name || "Peer";
+    const timestamp = msg.timestamp || Date.now();
 
+    // Ensure bucket exists in chatHistory
     if (!chatHistory[senderSessionId]) {
       chatHistory[senderSessionId] = [];
     }
 
-    chatHistory[senderSessionId].push({
+    const messageObj = {
       text: msg.text,
       fromSelf: false,
-      timestamp: msg.timestamp || Date.now(),
+      timestamp: timestamp,
       senderName: senderName,
-    });
+    };
 
-    // If currently viewing this chat, append it immediately
-    if (activeChat === senderSessionId) {
+    chatHistory[senderSessionId].push(messageObj);
+
+    // If sender is in our device list under a previous session ID, sync it
+    const matchingDevice = devices.find(
+      (d) => d.sessionId === senderSessionId || d.name === senderName
+    );
+
+    const isCurrentChat =
+      activeChat === senderSessionId ||
+      (matchingDevice && activeChat === matchingDevice.sessionId);
+
+    if (isCurrentChat) {
       appendMessage({
         text: msg.text,
         fromSelf: false,
-        timestamp: msg.timestamp || Date.now(),
+        timestamp: timestamp,
       });
     } else {
-      // Increment unread count badge
+      // Unread notification
       unreadCounts[senderSessionId] = (unreadCounts[senderSessionId] || 0) + 1;
       renderDeviceList();
     }
 
     playNotificationSound();
-  }
-
-  function handleMessageSent(msg) {
-    const targetSessionId = msg.to;
-
-    if (!chatHistory[targetSessionId]) {
-      chatHistory[targetSessionId] = [];
-    }
-
-    chatHistory[targetSessionId].push({
-      text: msg.text,
-      fromSelf: true,
-      timestamp: msg.timestamp || Date.now(),
-    });
-
-    // If this chat is currently open, display the sent message
-    if (activeChat === targetSessionId) {
-      appendMessage({
-        text: msg.text,
-        fromSelf: true,
-        timestamp: msg.timestamp || Date.now(),
-      });
-    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -198,14 +189,14 @@
 
     const currentIds = new Set(devices.map((d) => d.sessionId));
 
-    // Remove obsolete items
+    // Remove old items
     existingItems.forEach((el) => {
       if (!currentIds.has(el.dataset.sessionId)) {
         el.remove();
       }
     });
 
-    // Add or update items
+    // Add or update active items
     devices.forEach((device) => {
       let el = existingMap[device.sessionId];
       if (!el) {
@@ -306,7 +297,21 @@
     if (!container) return;
     container.innerHTML = "";
 
-    const history = chatHistory[sessionId] || [];
+    // Check history by sessionId or find matches by peer name
+    let history = chatHistory[sessionId] || [];
+
+    if (history.length === 0) {
+      const device = devices.find((d) => d.sessionId === sessionId);
+      if (device) {
+        // Look for any history stored under a prior session ID with the same device name
+        for (const [sId, msgs] of Object.entries(chatHistory)) {
+          if (msgs.some((m) => m.senderName === device.name)) {
+            history = msgs;
+            break;
+          }
+        }
+      }
+    }
 
     if (history.length === 0) {
       container.innerHTML = `
@@ -367,7 +372,7 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  Send Message Action
+  //  Send Message Action (Optimistic UI + WebSocket Relay)
   // ═══════════════════════════════════════════════════════════════
 
   function sendMessage() {
@@ -377,7 +382,26 @@
     const text = input.value.trim();
     if (!text) return;
 
-    // Send to backend bridge
+    const timestamp = Date.now();
+
+    // 1. Optimistically append message to local history and UI immediately
+    if (!chatHistory[activeChat]) {
+      chatHistory[activeChat] = [];
+    }
+
+    chatHistory[activeChat].push({
+      text: text,
+      fromSelf: true,
+      timestamp: timestamp,
+    });
+
+    appendMessage({
+      text: text,
+      fromSelf: true,
+      timestamp: timestamp,
+    });
+
+    // 2. Dispatch to backend TCP client
     send({
       type: "send_message",
       sessionId: activeChat,
@@ -471,7 +495,7 @@
       osc.start(audioCtx.currentTime);
       osc.stop(audioCtx.currentTime + 0.25);
     } catch (e) {
-      // Audio context disabled on mobile until user gesture
+      // Silent catch for autoplay constraints
     }
   }
 
@@ -527,7 +551,7 @@
       });
     }
 
-    // Adjust chat messages on mobile visual viewport resize (keyboard popup)
+    // Auto scroll when mobile keyboard pops up
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", () => {
         scrollToBottom();
