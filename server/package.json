@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "OfflineConnect — LAN Chat & Presence Backend",
   "main": "server.js",
-  "module": "module",
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts"
   },

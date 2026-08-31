@@ -1,6 +1,6 @@
 import net from "node:net";
-import { getDevice } from "./deviceStore";
-import { devicesI } from "./types";
+import { getDevice } from "./deviceStore.js";
+import { devicesI } from "./types.js";
 
 interface ChatMessage {
   senderName: string;

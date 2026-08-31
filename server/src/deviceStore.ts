@@ -1,4 +1,4 @@
-import { type devicesI } from './types';
+import { type devicesI } from './types.js';
 
 const discoveredDevices = new Map<string, devicesI>();
 
