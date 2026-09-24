@@ -8,4 +8,12 @@ export default defineConfig({
     port: 5173,
     open: false,
   },
+  preview: {
+    port: 4173,
+    open: false,
+  },
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+  },
 });

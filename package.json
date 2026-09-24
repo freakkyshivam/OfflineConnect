@@ -12,6 +12,8 @@
     "build": "npm --prefix server run build",
     "typecheck": "npm --prefix server run typecheck",
     "web:dev": "npm --prefix frontend run dev",
-    "web:build": "npm --prefix frontend run build"
+    "web:build": "npm --prefix frontend run build",
+    "web:preview": "npm --prefix frontend run preview",
+    "web:serve": "npm --prefix frontend run serve"
   }
 }
