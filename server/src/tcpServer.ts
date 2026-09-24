@@ -1,5 +1,15 @@
 import net from "node:net";
 
+/**
+ * TCP server with newline-delimited JSON framing.
+ *
+ * Bug #2 fix: TCP is a byte stream.  A single write() can be split
+ * across multiple "data" events, and multiple writes can coalesce
+ * into one "data" event.  We buffer incoming bytes and split on "\n".
+ *
+ * For backward compatibility with senders that don't append "\n",
+ * any remaining buffered data is flushed when the connection ends.
+ */
 export const startTcpServer = (
   port: number,
   onMessage: (data: string, socket: net.Socket) => void,
@@ -7,12 +17,29 @@ export const startTcpServer = (
   const server = net.createServer((socket) => {
     socket.setEncoding("utf-8");
 
-    const clientId = `${socket.remoteAddress}:${socket.remotePort}`;
+    let buffer = "";
 
-    console.log("Client connected:", clientId);
+    socket.on("data", (chunk: string) => {
+      buffer += chunk;
 
-    socket.on("data", (data: string) => {
-      onMessage(data, socket);
+      // Process all complete newline-delimited messages
+      let idx: number;
+      while ((idx = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 1);
+
+        if (line.length > 0) {
+          onMessage(line, socket);
+        }
+      }
+    });
+
+    // Flush remaining data on connection close (backward compat)
+    socket.on("end", () => {
+      if (buffer.length > 0) {
+        onMessage(buffer, socket);
+        buffer = "";
+      }
     });
 
     socket.on("error", (err) => {
@@ -20,7 +47,7 @@ export const startTcpServer = (
     });
 
     socket.on("close", () => {
-      console.log("Client disconnected:", clientId);
+      buffer = "";
     });
   });
 

@@ -1,11 +1,18 @@
 {
-  "name": "offlineconnect-backend",
+  "name": "offlineconnect",
   "version": "1.0.0",
-  "description": "OfflineConnect — LAN Chat & Presence Backend",
-  "main": "server.js",
+  "description": "OfflineConnect — LAN Chat & Presence Desktop Application",
+  "author": "Shivam",
+  "main": "dist/electron/main.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "test": "tsx --test src/__tests__/test.ts src/__tests__/two_device_demo.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc && node -e \"import('fs').then(fs => fs.copyFileSync('src/electron/preload.cjs', 'dist/electron/preload.cjs'))\"",
+    "electron:dev": "npm run build && electron .",
+    "electron:pack": "npm run build && electron-builder --dir",
+    "electron:build": "npm run build && electron-builder --win"
   },
   "dependencies": {
     "ws": "^8.18.0"
@@ -13,7 +20,50 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/ws": "^8.18.1",
+    "@typescript/typescript-win32-x64": "^7.0.2",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
+  },
+  "build": {
+    "appId": "com.offlineconnect.app",
+    "productName": "OfflineConnect",
+    "directories": {
+      "output": "release-pkg"
+    },
+    "files": [
+      "dist/**/*",
+      "../client/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../client",
+        "to": "client"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

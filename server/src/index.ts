@@ -13,18 +13,22 @@ import {
 } from "./discovery.js";
 
 import { startTcpServer } from "./tcpServer.js";
-import { sendMessageToDevice } from "./tcpClient.js";
+import {
+  sendMessageToDevice,
+  connectToPeer,
+  disconnectPeer,
+  disconnectAllPeers,
+  getPeerState,
+  onPeerStateChange,
+} from "./tcpClient.js";
 
 import { getDevices, getDevice } from "./deviceStore.js";
-
 import { devicesI } from "./types.js";
 
-const TCP_PORT = 8080;
-const HTTP_PORT = 3000;
+const DEFAULT_TCP_PORT = 8080;
+const DEFAULT_HTTP_PORT = 3000;
 
- 
-// Static File Server
-
+// ─── Static File Server ─────────────────────────────────────────────
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -37,24 +41,34 @@ const MIME_TYPES: Record<string, string> = {
   ".ico": "image/x-icon",
 };
 
-function findClientDir(): string {
+export function findClientDir(): string {
   const candidates: string[] = [];
 
+  // 1. Packaged Electron resources
+  const resourcesPath = (process as unknown as { resourcesPath?: string }).resourcesPath;
+  if (resourcesPath) {
+    candidates.push(path.join(resourcesPath, "client"));
+    candidates.push(path.join(resourcesPath, "app", "client"));
+  }
+
+  // 2. Relative to current file URL
   try {
     const thisFile = fileURLToPath(import.meta.url);
     const thisDir = path.dirname(thisFile);
-
     candidates.push(path.resolve(thisDir, "..", "..", "client"));
+    candidates.push(path.resolve(thisDir, "..", "client"));
   } catch {}
 
+  // 3. Relative to __dirname if available
   try {
     if (typeof __dirname !== "undefined") {
       candidates.push(path.resolve(__dirname, "..", "..", "client"));
+      candidates.push(path.resolve(__dirname, "..", "client"));
     }
   } catch {}
 
+  // 4. Relative to current working directory
   candidates.push(path.resolve(process.cwd(), "..", "client"));
-
   candidates.push(path.resolve(process.cwd(), "client"));
 
   for (const dir of candidates) {
@@ -65,8 +79,7 @@ function findClientDir(): string {
     } catch {}
   }
 
-  console.error("Could not find client/ directory.");
-
+  console.error("Could not find client/ directory. Checked candidates:");
   candidates.forEach((candidate) => {
     console.error(" -", candidate);
   });
@@ -74,221 +87,305 @@ function findClientDir(): string {
   return candidates[0] ?? path.resolve(process.cwd(), "client");
 }
 
-const CLIENT_DIR = findClientDir();
-
-console.log(`Static files: ${CLIENT_DIR}`);
-
-const httpServer = http.createServer((req, res) => {
-  let urlPath = req.url === "/" ? "/index.html" : (req.url ?? "/index.html");
-
-  urlPath = urlPath.split("?")[0] || "/index.html";
-  urlPath = urlPath.split("#")[0] || "/index.html";
-
-  try {
-    urlPath = decodeURIComponent(urlPath);
-  } catch {}
-
-  const fullPath = path.resolve(path.join(CLIENT_DIR, urlPath));
-
-  // Directory traversal protection
-  if (!fullPath.startsWith(path.resolve(CLIENT_DIR))) {
-    res.writeHead(403);
-    res.end("Forbidden");
-
-    return;
-  }
-
-  const ext = path.extname(fullPath);
-
-  const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
-
-  fs.readFile(fullPath, (err, data) => {
-    if (err) {
-      console.log(`[404] ${urlPath} → ${fullPath}`);
-
-      res.writeHead(404);
-      res.end("Not found");
-
-      return;
-    }
-
-    res.writeHead(200, {
-      "Content-Type": contentType,
-      "Cache-Control": "no-cache",
-      "Access-Control-Allow-Origin": "*",
-    });
-
-    res.end(data);
-  });
-});
-
- 
-// WebSocket
- 
-
-const wss = new WebSocketServer({
-  server: httpServer,
-});
-
-const browserClients = new Set<WebSocket>();
-
-function broadcast(data: object) {
-  const json = JSON.stringify(data);
-
-  for (const client of browserClients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(json);
-    }
-  }
+export interface BackendInstance {
+  httpPort: number;
+  tcpPort: number;
+  stop: () => Promise<void>;
 }
 
-function buildDeviceArray() {
-  const devices = getDevices();
-
-  const list: object[] = [];
-
-  devices.forEach((device: devicesI) => {
-    list.push({
-      sessionId: device.sessionId,
-      name: device.name,
-      ip: device.ip,
-      tcpPort: device.tcpPort,
-    });
-  });
-
-  return list;
+export interface BackendConfig {
+  httpPort?: number;
+  tcpPort?: number;
+  clientDir?: string;
 }
 
-wss.on("connection", (ws) => {
-  browserClients.add(ws);
+/**
+ * Start all OfflineConnect backend services (HTTP, WebSocket, UDP Discovery, TCP Server).
+ * Can be run standalone or embedded within Electron main process.
+ */
+export function startBackend(config: BackendConfig = {}): Promise<BackendInstance> {
+  return new Promise((resolve, reject) => {
+    const httpPort = config.httpPort ?? DEFAULT_HTTP_PORT;
+    const tcpPort = config.tcpPort ?? DEFAULT_TCP_PORT;
+    const clientDir = config.clientDir ?? findClientDir();
 
-  console.log("Browser client connected");
+    console.log(`Static files: ${clientDir}`);
 
-  // Send own device information
-  ws.send(
-    JSON.stringify({
-      type: "self_info",
-      sessionId: getSessionId(),
-      name: getDeviceName(),
-    }),
-  );
+    const httpServer = http.createServer((req, res) => {
+      let urlPath = req.url === "/" ? "/index.html" : (req.url ?? "/index.html");
 
-  // Send currently discovered devices
-  ws.send(
-    JSON.stringify({
-      type: "device_list",
-      devices: buildDeviceArray(),
-    }),
-  );
+      urlPath = urlPath.split("?")[0] || "/index.html";
+      urlPath = urlPath.split("#")[0] || "/index.html";
 
-  ws.on("message", (raw) => {
-    try {
-      const msg = JSON.parse(raw.toString());
+      try {
+        urlPath = decodeURIComponent(urlPath);
+      } catch {}
 
-      switch (msg.type) {
-        case "set_name": {
-          setDeviceName(msg.name);
+      const fullPath = path.resolve(path.join(clientDir, urlPath));
 
-          broadcast({
-            type: "self_info",
-            sessionId: getSessionId(),
-            name: getDeviceName(),
-          });
+      // Directory traversal protection
+      if (!fullPath.startsWith(path.resolve(clientDir))) {
+        res.writeHead(403);
+        res.end("Forbidden");
+        return;
+      }
 
-          console.log(`Display name set to: ${msg.name}`);
+      const ext = path.extname(fullPath);
+      const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
 
-          break;
+      fs.readFile(fullPath, (err, data) => {
+        if (err) {
+          console.log(`[404] ${urlPath} → ${fullPath}`);
+          res.writeHead(404);
+          res.end("Not found");
+          return;
         }
 
-        case "send_message": {
-          const timestamp = Date.now();
+        res.writeHead(200, {
+          "Content-Type": contentType,
+          "Cache-Control": "no-cache",
+          "Access-Control-Allow-Origin": "*",
+        });
 
-          sendMessageToDevice(msg.sessionId, {
-            senderName: getDeviceName(),
-            senderSessionId: getSessionId(),
-            text: msg.text,
-            timestamp,
-          });
+        res.end(data);
+      });
+    });
 
-          ws.send(
-            JSON.stringify({
-              type: "message_sent",
-              to: msg.sessionId,
-              text: msg.text,
-              timestamp,
-            }),
-          );
+    const wss = new WebSocketServer({ server: httpServer });
+    const browserClients = new Set<WebSocket>();
 
-          break;
+    function broadcast(data: object) {
+      const json = JSON.stringify(data);
+      for (const client of browserClients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(json);
         }
       }
-    } catch (err) {
-      console.log(
-        "Invalid WebSocket message:",
-        err instanceof Error ? err.message : err,
-      );
     }
-  });
 
-  ws.on("close", () => {
-    browserClients.delete(ws);
+    function buildDeviceArray() {
+      const devices = getDevices();
+      const list: object[] = [];
+      const mySessionId = getSessionId();
 
-    console.log("Browser client disconnected");
-  });
-});
+      devices.forEach((device: devicesI) => {
+        if (device.sessionId === mySessionId) return;
 
-// Update browser device list periodically
-setInterval(() => {
-  broadcast({
-    type: "device_list",
-    devices: buildDeviceArray(),
-  });
-}, 2000);
+        list.push({
+          sessionId: device.sessionId,
+          name: device.name,
+          ip: device.ip,
+          tcpPort: device.tcpPort,
+          online: device.online,
+          connectionState: getPeerState(device.sessionId),
+        });
+      });
 
+      return list;
+    }
 
-// Start UDP + TCP
-
-
-startDiscovery(TCP_PORT);
-
-startTcpServer(TCP_PORT, (data: string) => {
-  try {
-    const msg = JSON.parse(data);
-
-    if (msg.type === "chat") {
-      console.log(`Message from ${msg.senderName}: ${msg.text}`);
-
-      // Sender ki lastSeen update karo
-      const sender = getDevice(msg.senderSessionId);
-
-      if (sender) {
-        sender.lastSeen = Date.now();
-      }
-
-      // Browser ko incoming message bhejo
+    function broadcastDeviceList() {
       broadcast({
-        type: "incoming_message",
-
-        from: {
-          sessionId: msg.senderSessionId,
-          name: msg.senderName,
-        },
-
-        text: msg.text,
-
-        timestamp: msg.timestamp,
+        type: "device_list",
+        devices: buildDeviceArray(),
       });
     }
-  } catch {
-    console.log(`Received raw TCP data: ${data}`);
-  }
-});
- 
-// HTTP Server
- 
 
-httpServer.listen(HTTP_PORT, () => {
-  console.log("\nOfflineConnect is running!");
+    const unsubPeerState = onPeerStateChange((sessionId, state, error) => {
+      broadcast({
+        type: "peer_state",
+        sessionId,
+        state,
+        error,
+      });
+    });
 
-  console.log(`Open http://localhost:${HTTP_PORT}`);
-});
+    wss.on("connection", (ws) => {
+      browserClients.add(ws);
+
+      ws.send(
+        JSON.stringify({
+          type: "self_info",
+          sessionId: getSessionId(),
+          name: getDeviceName(),
+        }),
+      );
+
+      ws.send(
+        JSON.stringify({
+          type: "device_list",
+          devices: buildDeviceArray(),
+        }),
+      );
+
+      ws.on("message", async (raw) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+
+          switch (msg.type) {
+            case "set_name": {
+              setDeviceName(msg.name);
+              broadcast({
+                type: "self_info",
+                sessionId: getSessionId(),
+                name: getDeviceName(),
+              });
+              broadcastDeviceList();
+              console.log(`Display name set to: ${msg.name}`);
+              break;
+            }
+
+            case "connect_peer": {
+              if (typeof msg.sessionId === "string") {
+                await connectToPeer(msg.sessionId);
+              }
+              break;
+            }
+
+            case "disconnect_peer": {
+              if (typeof msg.sessionId === "string") {
+                disconnectPeer(msg.sessionId);
+              }
+              break;
+            }
+
+            case "send_message": {
+              const timestamp = Date.now();
+              const targetSessionId = msg.sessionId;
+              const text = msg.text;
+              const msgId = msg.id ?? crypto.randomUUID();
+
+              const success = await sendMessageToDevice(targetSessionId, {
+                id: msgId,
+                senderName: getDeviceName(),
+                senderSessionId: getSessionId(),
+                text,
+                timestamp,
+              });
+
+              ws.send(
+                JSON.stringify({
+                  type: success ? "message_sent" : "message_failed",
+                  id: msgId,
+                  to: targetSessionId,
+                  text,
+                  timestamp,
+                  error: success
+                    ? undefined
+                    : "Peer is offline or connection failed",
+                }),
+              );
+
+              break;
+            }
+          }
+        } catch (err) {
+          console.log(
+            "Invalid WebSocket message:",
+            err instanceof Error ? err.message : err,
+          );
+        }
+      });
+
+      ws.on("close", () => {
+        browserClients.delete(ws);
+      });
+    });
+
+    const broadcastInterval = setInterval(() => {
+      broadcastDeviceList();
+    }, 2000);
+
+    // UDP Discovery
+    const discovery = startDiscovery(tcpPort, () => {
+      broadcastDeviceList();
+    });
+
+    // TCP Chat Server
+    const tcpServer = startTcpServer(tcpPort, (data: string) => {
+      try {
+        const msg = JSON.parse(data);
+
+        if (msg.type === "chat") {
+          console.log(`Message from ${msg.senderName}: ${msg.text}`);
+
+          const sender = getDevice(msg.senderSessionId);
+          if (sender) {
+            sender.lastSeen = Date.now();
+            sender.online = true;
+          }
+
+          broadcast({
+            type: "incoming_message",
+            id: msg.id,
+            from: {
+              sessionId: msg.senderSessionId,
+              name: msg.senderName,
+            },
+            text: msg.text,
+            timestamp: msg.timestamp,
+          });
+        }
+      } catch {
+        console.log(`Received raw TCP data: ${data}`);
+      }
+    });
+
+    httpServer.on("error", (err) => {
+      console.error(`HTTP server error on port ${httpPort}:`, err.message);
+      reject(err);
+    });
+
+    httpServer.listen(httpPort, () => {
+      console.log(`OfflineConnect HTTP server listening on port ${httpPort}`);
+      console.log(`Open http://localhost:${httpPort}`);
+
+      const stop = async (): Promise<void> => {
+        clearInterval(broadcastInterval);
+        unsubPeerState();
+
+        for (const client of browserClients) {
+          try {
+            client.terminate();
+          } catch {}
+        }
+        browserClients.clear();
+
+        await new Promise<void>((r) => wss.close(() => r()));
+        await new Promise<void>((r) => httpServer.close(() => r()));
+
+        try {
+          discovery.cleanup();
+          discovery.socket.close();
+        } catch {}
+
+        try {
+          tcpServer.close();
+        } catch {}
+
+        disconnectAllPeers();
+        console.log("OfflineConnect backend stopped cleanly.");
+      };
+
+      resolve({
+        httpPort,
+        tcpPort,
+        stop,
+      });
+    });
+  });
+}
+
+// ─── Direct execution entry point ───────────────────────────────────
+
+const isDirectExecution =
+  process.argv[1] &&
+  (process.argv[1].endsWith("index.ts") || process.argv[1].endsWith("index.js")) &&
+  !process.env.OFFLINECONNECT_NO_AUTOSTART;
+
+if (isDirectExecution) {
+  startBackend().catch((err) => {
+    console.error("Failed to start OfflineConnect backend:", err);
+    process.exit(1);
+  });
+}
