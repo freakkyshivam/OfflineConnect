@@ -9,6 +9,7 @@ import { Downloads } from "./sections/Downloads";
 import { HowToDemo } from "./sections/HowToDemo";
 import { Limitations } from "./sections/Limitations";
 import { GitHubSection } from "./sections/GitHubSection";
+import { DeveloperSection } from "./sections/DeveloperSection";
 import { Footer } from "./components/Footer";
 
 export const App: React.FC = () => {
@@ -25,6 +26,7 @@ export const App: React.FC = () => {
         <HowToDemo />
         <Limitations />
         <GitHubSection />
+        <DeveloperSection />
       </main>
       <Footer />
     </div>

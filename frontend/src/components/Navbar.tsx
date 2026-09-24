@@ -22,6 +22,7 @@ export const Navbar: React.FC = () => {
     { name: "Tech Stack", href: "#tech-stack" },
     { name: "How to Demo", href: "#demo" },
     { name: "Limitations", href: "#limitations" },
+    { name: "Developer", href: "#developer" },
   ];
 
   return (

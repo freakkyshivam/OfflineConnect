@@ -13,8 +13,20 @@ export const PROJECT_CONFIG = {
   description:
     "Discover nearby devices automatically and communicate over the local network using UDP discovery and TCP messaging, without relying on a cloud server.",
   repositoryUrl: "https://github.com/freakkyshivam/OfflineConnect",
-  author: "Shivam",
+  author: "Shivam Chaudhary",
   license: "MIT",
+};
+
+export const DEVELOPER_CONFIG = {
+  name: "Shivam Chaudhary",
+  role: "Student & Backend Developer",
+  description:
+    "OfflineConnect is a college networking project built to explore UDP device discovery, TCP socket communication, heartbeat-based presence, and peer-to-peer communication over a local network.",
+  socials: {
+    github: "https://github.com/freakkyshivam",
+    portfolio: "https://shivam-dev.in",
+    linkedin: "https://www.linkedin.com/in/shivamchaudhary-dev",
+  },
 };
 
 /**

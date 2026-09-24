@@ -1,6 +1,8 @@
 import React from "react";
-import { PROJECT_CONFIG } from "../config";
-import { Radio } from "lucide-react";
+import { PROJECT_CONFIG, DEVELOPER_CONFIG } from "../config";
+import { Radio, ExternalLink } from "lucide-react";
+import { GithubIcon } from "./GithubIcon";
+import { LinkedinIcon } from "./LinkedinIcon";
 
 export const Footer: React.FC = () => {
   return (
@@ -18,13 +20,13 @@ export const Footer: React.FC = () => {
             justifyContent: "space-between",
             alignItems: "flex-start",
             flexWrap: "wrap",
-            gap: "2rem",
+            gap: "2.5rem",
             marginBottom: "2.5rem",
           }}
         >
           {/* Brand info */}
-          <div style={{ maxWidth: "380px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.75rem" }}>
+          <div style={{ maxWidth: "400px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
               <div
                 style={{
                   width: "1.75rem",
@@ -43,14 +45,73 @@ export const Footer: React.FC = () => {
               </span>
               <span className="badge badge-blue">v{PROJECT_CONFIG.version}</span>
             </div>
-            <p style={{ color: "var(--text-dim)", fontSize: "0.875rem", lineHeight: 1.6 }}>
-              A computer networking capstone project demonstrating decentralized peer-to-peer communication
-              using native UDP and TCP sockets on local area networks.
+
+            <div style={{ fontSize: "0.85rem", color: "var(--accent-blue)", fontWeight: 500, marginBottom: "0.6rem" }}>
+              {PROJECT_CONFIG.tagline}
+            </div>
+
+            <p style={{ color: "var(--text-dim)", fontSize: "0.85rem", lineHeight: 1.6, marginBottom: "1rem" }}>
+              A college networking project exploring UDP, TCP, and peer-to-peer communication.
             </p>
+
+            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+              Built & Developed by{" "}
+              <a
+                href={DEVELOPER_CONFIG.socials.portfolio}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#ffffff", fontWeight: 600, textDecoration: "none" }}
+              >
+                {DEVELOPER_CONFIG.name}
+              </a>
+            </div>
           </div>
 
-          {/* Quick links */}
-          <div style={{ display: "flex", gap: "3rem", flexWrap: "wrap" }}>
+          {/* Quick Links & Socials */}
+          <div style={{ display: "flex", gap: "3.5rem", flexWrap: "wrap" }}>
+            {/* Developer Profiles */}
+            <div>
+              <div style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: "#ffffff", marginBottom: "0.75rem" }}>
+                Developer
+              </div>
+              <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "0.6rem", fontSize: "0.85rem" }}>
+                <li>
+                  <a
+                    href={DEVELOPER_CONFIG.socials.github}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "var(--text-muted)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+                  >
+                    <GithubIcon size={14} />
+                    <span>GitHub</span>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={DEVELOPER_CONFIG.socials.portfolio}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "var(--text-muted)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+                  >
+                    <span>Portfolio</span>
+                    <ExternalLink size={12} style={{ opacity: 0.7 }} />
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={DEVELOPER_CONFIG.socials.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "var(--text-muted)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+                  >
+                    <LinkedinIcon size={14} color="#0a66c2" />
+                    <span>LinkedIn</span>
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Navigation */}
             <div>
               <div style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: "#ffffff", marginBottom: "0.75rem" }}>
                 Navigation
@@ -63,6 +124,7 @@ export const Footer: React.FC = () => {
               </ul>
             </div>
 
+            {/* Resources */}
             <div>
               <div style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: "#ffffff", marginBottom: "0.75rem" }}>
                 Resources
@@ -77,7 +139,7 @@ export const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Bottom copyright */}
+        {/* Bottom Bar: Copyright & Attribution */}
         <div
           style={{
             borderTop: "1px solid rgba(255, 255, 255, 0.05)",
@@ -92,10 +154,35 @@ export const Footer: React.FC = () => {
           }}
         >
           <div>
-            © {new Date().getFullYear()} {PROJECT_CONFIG.name}. Licensed under {PROJECT_CONFIG.license} License.
+            © 2026 {DEVELOPER_CONFIG.name}. Licensed under {PROJECT_CONFIG.license} License.
           </div>
-          <div>
-            Built with pure socket engineering and React.js
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <a
+              href={DEVELOPER_CONFIG.socials.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--text-muted)", textDecoration: "none" }}
+            >
+              GitHub
+            </a>
+            <span>•</span>
+            <a
+              href={DEVELOPER_CONFIG.socials.portfolio}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--text-muted)", textDecoration: "none" }}
+            >
+              Portfolio
+            </a>
+            <span>•</span>
+            <a
+              href={DEVELOPER_CONFIG.socials.linkedin}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--text-muted)", textDecoration: "none" }}
+            >
+              LinkedIn
+            </a>
           </div>
         </div>
       </div>
