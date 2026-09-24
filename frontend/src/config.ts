@@ -32,7 +32,7 @@ export const PROJECT_CONFIG = {
  */
 export const RELEASE_CONFIG = {
   // Flag indicating if release assets have been published on GitHub
-  isPublished: false,
+  isPublished: true,
 
   version: "1.0.0",
   releaseTag: "v1.0.0",
