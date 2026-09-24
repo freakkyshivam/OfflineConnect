@@ -1,0 +1,17 @@
+{
+  "name": "offlineconnect-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OfflineConnect — Root Workspace Runner",
+  "scripts": {
+    "electron:dev": "npm --prefix server run electron:dev",
+    "electron:build": "npm --prefix server run electron:build",
+    "electron:pack": "npm --prefix server run electron:pack",
+    "dev": "npm --prefix server run dev",
+    "test": "npm --prefix server run test",
+    "build": "npm --prefix server run build",
+    "typecheck": "npm --prefix server run typecheck",
+    "web:dev": "npm --prefix frontend run dev",
+    "web:build": "npm --prefix frontend run build"
+  }
+}
