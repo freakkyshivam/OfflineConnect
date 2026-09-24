@@ -1,7 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════
-   OfflineConnect — Frontend Logic
-   WebSocket connection, device list, chat UI, state management.
-   Optimized for cross-platform two-way messaging on Desktop and Mobile.
+   OfflineConnect — Reliable Client Integration
+   Peer discovery, connection state management, and 1:1 chat UI.
    ═══════════════════════════════════════════════════════════════════ */
 
 (function () {
@@ -11,17 +10,31 @@
   let ws = null;
   let reconnectTimer = null;
   let selfInfo = { sessionId: "", name: "" };
+
+  // devices: array of { sessionId, name, ip, tcpPort, online, connectionState }
   let devices = [];
-  let activeChat = null;       // sessionId of selected device
-  let chatHistory = {};        // { sessionId: [ { text, fromSelf, timestamp, senderName } ] }
-  let unreadCounts = {};       // { sessionId: number }
+
+  // activeChat: sessionId of currently selected peer (or null)
+  let activeChat = null;
+
+  // peerConnectionStates: { [sessionId]: "disconnected" | "connecting" | "connected" | "reconnecting" | "failed/offline" }
+  const peerConnectionStates = {};
+
+  // chatHistory: { [sessionId]: Array<{ id, text, fromSelf, timestamp, senderName, status }> }
+  const chatHistory = {};
+
+  // unreadCounts: { [sessionId]: number }
+  const unreadCounts = {};
+
+  // Deduplication set for incoming message IDs
+  const seenMessageIds = new Set();
 
   // ─── DOM Helpers ────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
   const STORAGE_KEY = "offlineconnect_name";
 
   // ═══════════════════════════════════════════════════════════════
-  //  WebSocket Connection
+  //  WebSocket Connection (Client ↔ Backend)
   // ═══════════════════════════════════════════════════════════════
 
   function connect() {
@@ -37,6 +50,14 @@
       const savedName = localStorage.getItem(STORAGE_KEY);
       if (savedName) {
         send({ type: "set_name", name: savedName });
+      }
+
+      // If a chat was active, request reconnect to peer
+      if (activeChat) {
+        const peer = devices.find((d) => d.sessionId === activeChat);
+        if (peer && peer.online) {
+          send({ type: "connect_peer", sessionId: activeChat });
+        }
       }
     };
 
@@ -64,7 +85,7 @@
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(data));
     } else {
-      console.warn("[WS] Cannot send message - socket not open");
+      console.warn("[WS] Cannot send message — socket not open");
     }
   }
 
@@ -84,12 +105,12 @@
       text.textContent = "Connected to local server";
     } else {
       bar.classList.add("disconnected");
-      text.textContent = "Disconnected — reconnecting…";
+      text.textContent = "Disconnected from local server — reconnecting…";
     }
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  Message Handlers
+  //  Server Event Handlers
   // ═══════════════════════════════════════════════════════════════
 
   function handleMessage(msg) {
@@ -98,12 +119,16 @@
         selfInfo.sessionId = msg.sessionId;
         selfInfo.name = msg.name;
         if ($("self-name")) $("self-name").textContent = msg.name;
+        // Re-render device list to guarantee self device is excluded
+        renderDeviceList();
         break;
 
       case "device_list":
-        devices = msg.devices || [];
-        renderDeviceList();
-        updateActiveChatStatus();
+        handleDeviceList(msg.devices || []);
+        break;
+
+      case "peer_state":
+        handlePeerState(msg.sessionId, msg.state, msg.error);
         break;
 
       case "incoming_message":
@@ -111,59 +136,71 @@
         break;
 
       case "message_sent":
-        // Acknowledgment from backend
-        console.log("[Message] Sent successfully to:", msg.to);
+        handleMessageSent(msg);
+        break;
+
+      case "message_failed":
+        handleMessageFailed(msg);
         break;
     }
   }
 
-  function handleIncomingMessage(msg) {
-    console.log("[Chat] Incoming message:", msg);
-    const senderSessionId = msg.from.sessionId;
-    const senderName = msg.from.name || "Peer";
-    const timestamp = msg.timestamp || Date.now();
+  // ═══════════════════════════════════════════════════════════════
+  //  Peer List Management
+  // ═══════════════════════════════════════════════════════════════
 
-    // Ensure bucket exists in chatHistory
-    if (!chatHistory[senderSessionId]) {
-      chatHistory[senderSessionId] = [];
-    }
-
-    const messageObj = {
-      text: msg.text,
-      fromSelf: false,
-      timestamp: timestamp,
-      senderName: senderName,
-    };
-
-    chatHistory[senderSessionId].push(messageObj);
-
-    // If sender is in our device list under a previous session ID, sync it
-    const matchingDevice = devices.find(
-      (d) => d.sessionId === senderSessionId || d.name === senderName
+  function handleDeviceList(newList) {
+    // 1. Never include own device
+    const filtered = newList.filter(
+      (d) => d.sessionId !== selfInfo.sessionId,
     );
 
-    const isCurrentChat =
-      activeChat === senderSessionId ||
-      (matchingDevice && activeChat === matchingDevice.sessionId);
+    // 2. Track previous online status to detect rediscovery
+    const prevMap = new Map();
+    devices.forEach((d) => prevMap.set(d.sessionId, d));
 
-    if (isCurrentChat) {
-      appendMessage({
-        text: msg.text,
-        fromSelf: false,
-        timestamp: timestamp,
-      });
-    } else {
-      // Unread notification
-      unreadCounts[senderSessionId] = (unreadCounts[senderSessionId] || 0) + 1;
-      renderDeviceList();
-    }
+    devices = filtered;
 
-    playNotificationSound();
+    // 3. Update connection states from server info
+    devices.forEach((d) => {
+      if (d.connectionState) {
+        peerConnectionStates[d.sessionId] = d.connectionState;
+      } else if (!d.online) {
+        peerConnectionStates[d.sessionId] = "failed/offline";
+      }
+
+      // Check for rediscovery of the active chat peer
+      const prev = prevMap.get(d.sessionId);
+      if (
+        prev &&
+        !prev.online &&
+        d.online &&
+        activeChat === d.sessionId
+      ) {
+        console.log(`[Presence] Active peer "${d.name}" came back online, reconnecting TCP...`);
+        send({ type: "connect_peer", sessionId: d.sessionId });
+      }
+    });
+
+    renderDeviceList();
+    updateActiveChatStatus();
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  //  Device List Rendering
-  // ═══════════════════════════════════════════════════════════════
+  function handlePeerState(sessionId, state, error) {
+    console.log(`[TCP] Peer ${sessionId} state: ${state} ${error ? `(${error})` : ""}`);
+    peerConnectionStates[sessionId] = state;
+
+    // Update sidebar entry if present
+    const item = $(`device-item-${sessionId}`);
+    if (item) {
+      updateDeviceItemConnectionBadge(item, sessionId);
+    }
+
+    // Update active chat header and input controls if this is the active peer
+    if (activeChat === sessionId) {
+      updateActiveChatStatus();
+    }
+  }
 
   function renderDeviceList() {
     const container = $("device-list");
@@ -189,19 +226,20 @@
 
     const currentIds = new Set(devices.map((d) => d.sessionId));
 
-    // Remove old items
+    // Remove entries that no longer exist in the server peer Map
     existingItems.forEach((el) => {
       if (!currentIds.has(el.dataset.sessionId)) {
         el.remove();
       }
     });
 
-    // Add or update active items
+    // Add or update active entries
     devices.forEach((device) => {
       let el = existingMap[device.sessionId];
       if (!el) {
         el = document.createElement("div");
         el.className = "device-item";
+        el.id = `device-item-${device.sessionId}`;
         el.dataset.sessionId = device.sessionId;
         container.appendChild(el);
       }
@@ -213,6 +251,8 @@
     const isActive = activeChat === device.sessionId;
     const unread = unreadCounts[device.sessionId] || 0;
     const initial = (device.name || "?").charAt(0).toUpperCase();
+    const isOnline = !!device.online;
+    const connState = peerConnectionStates[device.sessionId] || (isOnline ? "disconnected" : "failed/offline");
 
     el.className = "device-item" + (isActive ? " active" : "");
 
@@ -220,9 +260,10 @@
       <div class="device-avatar">${escapeHtml(initial)}</div>
       <div class="device-details">
         <div class="device-name">${escapeHtml(device.name)}</div>
-        <div class="device-ip">${escapeHtml(device.ip)}</div>
+        <div class="device-ip">${escapeHtml(device.ip)}:${device.tcpPort}</div>
       </div>
-      <span class="status-dot online"></span>
+      <span class="status-dot ${isOnline ? "online" : "offline"}" title="${isOnline ? "Online" : "Offline"}"></span>
+      <span class="peer-status-badge ${isOnline ? "online" : "offline"}">${isOnline ? "Online" : "Offline"}</span>
       ${unread > 0 ? `<span class="unread-badge">${unread > 9 ? "9+" : unread}</span>` : ""}
     `;
 
@@ -231,48 +272,73 @@
     };
   }
 
+  function updateDeviceItemConnectionBadge(el, sessionId) {
+    const device = devices.find((d) => d.sessionId === sessionId);
+    if (!device) return;
+    const isOnline = !!device.online;
+    const dot = el.querySelector(".status-dot");
+    const badge = el.querySelector(".peer-status-badge");
+    if (dot) {
+      dot.className = `status-dot ${isOnline ? "online" : "offline"}`;
+    }
+    if (badge) {
+      badge.className = `peer-status-badge ${isOnline ? "online" : "offline"}`;
+      badge.textContent = isOnline ? "Online" : "Offline";
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════
-  //  Chat View Management
+  //  Chat View & Connection State
   // ═══════════════════════════════════════════════════════════════
 
   function selectDevice(sessionId) {
+    // If selecting the already active chat, just keep it
+    const isSameChat = activeChat === sessionId;
     activeChat = sessionId;
 
-    // Reset unread count for this device
+    // Reset unread count
     unreadCounts[sessionId] = 0;
     renderDeviceList();
 
     const device = devices.find((d) => d.sessionId === sessionId);
     if (!device) return;
 
-    // Update header details
-    if ($("peer-name")) $("peer-name").textContent = device.name;
-    if ($("peer-ip")) $("peer-ip").textContent = device.ip;
-    if ($("peer-status")) $("peer-status").className = "status-dot online";
-
-    // Switch view
+    // Switch views
     $("welcome-screen").classList.add("hidden");
     $("chat-view").classList.remove("hidden");
 
     // On mobile, hide sidebar to show chat panel
     $("sidebar").classList.add("sidebar-hidden");
 
-    // Update send button state
-    updateSendButtonState();
-
     // Render conversation history
     renderMessages(sessionId);
 
-    // Focus input bar
+    // Update chat header and controls with actual network state
+    updateActiveChatStatus();
+
+    // If online and not already connected, initiate real TCP connection
+    if (device.online) {
+      const state = peerConnectionStates[sessionId];
+      if (state !== "connected" && state !== "connecting") {
+        send({ type: "connect_peer", sessionId });
+      }
+    }
+
+    // Focus input if connected
     const input = $("message-input");
-    if (input) input.focus();
+    if (input && device.online) {
+      input.focus();
+    }
   }
 
   function showWelcomeScreen() {
+    // Clean up active chat state
+    if (activeChat) {
+      send({ type: "disconnect_peer", sessionId: activeChat });
+    }
     activeChat = null;
     $("welcome-screen").classList.remove("hidden");
     $("chat-view").classList.add("hidden");
-    updateSendButtonState();
     renderDeviceList();
 
     // On mobile, show sidebar
@@ -283,35 +349,112 @@
     if (!activeChat) return;
 
     const device = devices.find((d) => d.sessionId === activeChat);
-    if (device) {
-      if ($("peer-status")) $("peer-status").className = "status-dot online";
-      if ($("peer-name")) $("peer-name").textContent = device.name;
-      if ($("peer-ip")) $("peer-ip").textContent = device.ip;
-    } else {
-      if ($("peer-status")) $("peer-status").className = "status-dot offline";
+    const statusDot = $("peer-status");
+    const peerName = $("peer-name");
+    const peerIp = $("peer-ip");
+    const sendBtn = $("send-btn");
+    const msgInput = $("message-input");
+
+    if (!device) {
+      if (statusDot) statusDot.className = "status-dot offline";
+      if (peerName) peerName.textContent = "Unknown device";
+      if (peerIp) peerIp.textContent = "Offline";
+      if (sendBtn) sendBtn.disabled = true;
+      if (msgInput) {
+        msgInput.disabled = true;
+        msgInput.placeholder = "Device is offline";
+      }
+      return;
     }
+
+    if (peerName) peerName.textContent = device.name;
+
+    const connState = peerConnectionStates[device.sessionId] || (device.online ? "disconnected" : "failed/offline");
+
+    // Compute display text and dot status based on genuine socket and discovery state
+    let stateLabel = "";
+    let dotClass = "offline";
+    let canSend = false;
+
+    if (!device.online) {
+      stateLabel = "Offline";
+      dotClass = "offline";
+      canSend = false;
+    } else {
+      switch (connState) {
+        case "connected":
+          stateLabel = "Connected";
+          dotClass = "online";
+          canSend = true;
+          break;
+        case "connecting":
+          stateLabel = "Connecting…";
+          dotClass = "connecting";
+          canSend = false;
+          break;
+        case "reconnecting":
+          stateLabel = "Reconnecting…";
+          dotClass = "reconnecting";
+          canSend = false;
+          break;
+        case "failed/offline":
+          stateLabel = "Connection failed";
+          dotClass = "failed";
+          canSend = false;
+          break;
+        case "disconnected":
+        default:
+          stateLabel = "Disconnected";
+          dotClass = "disconnected";
+          canSend = false;
+          break;
+      }
+    }
+
+    if (statusDot) statusDot.className = `status-dot ${dotClass}`;
+    if (peerIp) {
+      peerIp.textContent = `${device.ip}:${device.tcpPort} • ${stateLabel}`;
+    }
+
+    if (msgInput) {
+      msgInput.disabled = !device.online;
+      msgInput.placeholder = device.online
+        ? "Type a message…"
+        : "Device is offline";
+    }
+
+    updateSendButtonState(canSend);
   }
+
+  function updateSendButtonState(canSendOverride) {
+    const btn = $("send-btn");
+    const input = $("message-input");
+    if (!btn || !input) return;
+
+    if (!activeChat) {
+      btn.disabled = true;
+      return;
+    }
+
+    const device = devices.find((d) => d.sessionId === activeChat);
+    const isOnline = device && device.online;
+    const connState = peerConnectionStates[activeChat];
+    const isConnected = isOnline && (connState === "connected" || canSendOverride === true);
+
+    const hasText = input.value.trim().length > 0;
+    btn.disabled = !hasText || !isConnected;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Message Handling (Exactly-Once Delivery & Display)
+  // ═══════════════════════════════════════════════════════════════
 
   function renderMessages(sessionId) {
     const container = $("messages");
     if (!container) return;
     container.innerHTML = "";
 
-    // Check history by sessionId or find matches by peer name
-    let history = chatHistory[sessionId] || [];
-
-    if (history.length === 0) {
-      const device = devices.find((d) => d.sessionId === sessionId);
-      if (device) {
-        // Look for any history stored under a prior session ID with the same device name
-        for (const [sId, msgs] of Object.entries(chatHistory)) {
-          if (msgs.some((m) => m.senderName === device.name)) {
-            history = msgs;
-            break;
-          }
-        }
-      }
-    }
+    const history = chatHistory[sessionId] || [];
 
     if (history.length === 0) {
       container.innerHTML = `
@@ -349,6 +492,7 @@
   function createMessageElement(msg) {
     const row = document.createElement("div");
     row.className = "message-row " + (msg.fromSelf ? "sent" : "received");
+    if (msg.id) row.dataset.msgId = msg.id;
 
     const bubble = document.createElement("div");
     bubble.className = "message-bubble";
@@ -360,6 +504,15 @@
 
     row.appendChild(bubble);
     row.appendChild(time);
+
+    // If message failed, show indicator
+    if (msg.status === "failed") {
+      const statusText = document.createElement("div");
+      statusText.className = "message-status failed";
+      statusText.textContent = "Failed to send";
+      row.appendChild(statusText);
+    }
+
     return row;
   }
 
@@ -371,10 +524,6 @@
     });
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  //  Send Message Action (Optimistic UI + WebSocket Relay)
-  // ═══════════════════════════════════════════════════════════════
-
   function sendMessage() {
     const input = $("message-input");
     if (!input || !activeChat) return;
@@ -382,28 +531,37 @@
     const text = input.value.trim();
     if (!text) return;
 
+    const device = devices.find((d) => d.sessionId === activeChat);
+    if (!device || !device.online) {
+      console.warn("[Chat] Cannot send: device is offline");
+      return;
+    }
+
+    // Generate unique message ID
+    const msgId = crypto.randomUUID ? crypto.randomUUID() : `msg-${Date.now()}-${Math.random()}`;
     const timestamp = Date.now();
 
-    // 1. Optimistically append message to local history and UI immediately
+    const msgObj = {
+      id: msgId,
+      text: text,
+      fromSelf: true,
+      timestamp: timestamp,
+      status: "sending",
+    };
+
+    // 1. Add to local history exactly once
     if (!chatHistory[activeChat]) {
       chatHistory[activeChat] = [];
     }
+    chatHistory[activeChat].push(msgObj);
 
-    chatHistory[activeChat].push({
-      text: text,
-      fromSelf: true,
-      timestamp: timestamp,
-    });
+    // 2. Render outgoing message immediately
+    appendMessage(msgObj);
 
-    appendMessage({
-      text: text,
-      fromSelf: true,
-      timestamp: timestamp,
-    });
-
-    // 2. Dispatch to backend TCP client
+    // 3. Dispatch to backend over WebSocket
     send({
       type: "send_message",
+      id: msgId,
       sessionId: activeChat,
       text: text,
     });
@@ -413,12 +571,75 @@
     input.focus();
   }
 
-  function updateSendButtonState() {
-    const btn = $("send-btn");
-    const input = $("message-input");
-    if (btn && input) {
-      btn.disabled = !input.value.trim() || !activeChat;
+  function handleMessageSent(msg) {
+    const targetSessionId = msg.to;
+    const history = chatHistory[targetSessionId];
+    if (!history) return;
+
+    const existing = history.find((m) => m.id === msg.id);
+    if (existing) {
+      existing.status = "delivered";
     }
+  }
+
+  function handleMessageFailed(msg) {
+    const targetSessionId = msg.to;
+    const history = chatHistory[targetSessionId];
+    if (!history) return;
+
+    const existing = history.find((m) => m.id === msg.id);
+    if (existing) {
+      existing.status = "failed";
+      // Update DOM element if currently in active chat
+      if (activeChat === targetSessionId) {
+        const row = document.querySelector(`[data-msg-id="${msg.id}"]`);
+        if (row && !row.querySelector(".message-status.failed")) {
+          const statusText = document.createElement("div");
+          statusText.className = "message-status failed";
+          statusText.textContent = "Failed to send";
+          row.appendChild(statusText);
+        }
+      }
+    }
+  }
+
+  function handleIncomingMessage(msg) {
+    const senderSessionId = msg.from.sessionId;
+    const senderName = msg.from.name || "Peer";
+    const timestamp = msg.timestamp || Date.now();
+    const msgId = msg.id || `${senderSessionId}-${timestamp}-${msg.text}`;
+
+    // Exactly-once incoming guarantee
+    if (seenMessageIds.has(msgId)) {
+      console.log(`[Chat] Ignoring duplicate message ${msgId}`);
+      return;
+    }
+    seenMessageIds.add(msgId);
+
+    if (!chatHistory[senderSessionId]) {
+      chatHistory[senderSessionId] = [];
+    }
+
+    const messageObj = {
+      id: msgId,
+      text: msg.text,
+      fromSelf: false,
+      timestamp: timestamp,
+      senderName: senderName,
+      status: "delivered",
+    };
+
+    chatHistory[senderSessionId].push(messageObj);
+
+    // If currently viewing this chat, append it immediately
+    if (activeChat === senderSessionId) {
+      appendMessage(messageObj);
+    } else {
+      unreadCounts[senderSessionId] = (unreadCounts[senderSessionId] || 0) + 1;
+      renderDeviceList();
+    }
+
+    playNotificationSound();
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -468,7 +689,7 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  Sound & Utilities
+  //  Sound & Formatting Utilities
   // ═══════════════════════════════════════════════════════════════
 
   let audioCtx = null;
@@ -495,7 +716,7 @@
       osc.start(audioCtx.currentTime);
       osc.stop(audioCtx.currentTime + 0.25);
     } catch (e) {
-      // Silent catch for autoplay constraints
+      // Audio autoplay policy
     }
   }
 
@@ -516,7 +737,7 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  Event Listeners Binding
+  //  Event Bindings
   // ═══════════════════════════════════════════════════════════════
 
   function bindEvents() {
@@ -539,9 +760,9 @@
         }
       });
 
-      messageInput.addEventListener("input", updateSendButtonState);
-      messageInput.addEventListener("keyup", updateSendButtonState);
-      messageInput.addEventListener("change", updateSendButtonState);
+      messageInput.addEventListener("input", () => updateSendButtonState());
+      messageInput.addEventListener("keyup", () => updateSendButtonState());
+      messageInput.addEventListener("change", () => updateSendButtonState());
     }
 
     if (backBtn) {
@@ -551,7 +772,6 @@
       });
     }
 
-    // Auto scroll when mobile keyboard pops up
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", () => {
         scrollToBottom();
