@@ -34,11 +34,19 @@ const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
-  ".json": "application/json",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".map": "application/json",
+  ".txt": "text/plain; charset=utf-8",
 };
 
 export function findClientDir(): string {
@@ -73,6 +81,9 @@ export function findClientDir(): string {
 
   for (const dir of candidates) {
     try {
+      if (fs.existsSync(path.join(dir, "dist", "index.html"))) {
+        return path.join(dir, "dist");
+      }
       if (fs.existsSync(path.join(dir, "index.html"))) {
         return dir;
       }
@@ -107,7 +118,12 @@ export function startBackend(config: BackendConfig = {}): Promise<BackendInstanc
   return new Promise((resolve, reject) => {
     const httpPort = config.httpPort ?? DEFAULT_HTTP_PORT;
     const tcpPort = config.tcpPort ?? DEFAULT_TCP_PORT;
-    const clientDir = config.clientDir ?? findClientDir();
+    let clientDir = config.clientDir ?? findClientDir();
+
+    // If clientDir contains a Vite production build in dist/, serve dist/ instead of source
+    if (fs.existsSync(path.join(clientDir, "dist", "index.html"))) {
+      clientDir = path.join(clientDir, "dist");
+    }
 
     console.log(`Static files: ${clientDir}`);
 
@@ -130,21 +146,39 @@ export function startBackend(config: BackendConfig = {}): Promise<BackendInstanc
         return;
       }
 
-      const ext = path.extname(fullPath);
+      const ext = path.extname(fullPath).toLowerCase();
       const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
 
       fs.readFile(fullPath, (err, data) => {
         if (err) {
+          // If requesting an SPA route without a file extension, fallback to index.html
+          if (!ext && fs.existsSync(path.join(clientDir, "index.html"))) {
+            fs.readFile(path.join(clientDir, "index.html"), (err2, indexData) => {
+              if (err2) {
+                res.writeHead(404);
+                res.end("Not found");
+              } else {
+                res.writeHead(200, {
+                  "Content-Type": "text/html; charset=utf-8",
+                  "Cache-Control": "no-cache",
+                });
+                res.end(indexData);
+              }
+            });
+            return;
+          }
           console.log(`[404] ${urlPath} → ${fullPath}`);
           res.writeHead(404);
           res.end("Not found");
           return;
         }
 
+        const isHashedAsset = urlPath.startsWith("/assets/");
         res.writeHead(200, {
           "Content-Type": contentType,
-          "Cache-Control": "no-cache",
+          "Cache-Control": isHashedAsset ? "public, max-age=31536000, immutable" : "no-cache",
           "Access-Control-Allow-Origin": "*",
+          "X-Content-Type-Options": "nosniff",
         });
 
         res.end(data);
