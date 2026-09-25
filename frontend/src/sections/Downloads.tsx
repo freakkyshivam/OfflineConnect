@@ -1,12 +1,20 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import { RELEASE_CONFIG } from "../config";
 import { Download, Monitor, AlertCircle, ExternalLink, HardDrive } from "lucide-react";
 
 export const Downloads: React.FC = () => {
+  const { ref: headerRef, isRevealed: headerRevealed } = useScrollReveal();
+  const { ref: gridRef, isRevealed: gridRevealed } = useScrollReveal();
+  const { ref: noticeRef, isRevealed: noticeRevealed } = useScrollReveal();
+
   return (
     <section id="download" style={{ background: "var(--bg-secondary)" }}>
       <div className="container">
-        <div className="section-header">
+        <div
+          ref={headerRef}
+          className={`section-header scroll-reveal ${headerRevealed ? "is-revealed" : ""}`}
+        >
           <div className="section-tag">
             <Download size={14} />
             <span>Official Releases</span>
@@ -20,6 +28,7 @@ export const Downloads: React.FC = () => {
 
         {/* Release Cards Grid */}
         <div
+          ref={gridRef}
           style={{
             maxWidth: "960px",
             margin: "0 auto 3rem auto",
@@ -27,11 +36,11 @@ export const Downloads: React.FC = () => {
             gridTemplateColumns: "1fr 1fr",
             gap: "2rem",
           }}
-          className="download-grid"
+          className={`download-grid reveal-group ${gridRevealed ? "is-revealed" : ""}`}
         >
           {/* Card 1: Windows NSIS Installer */}
           <div
-            className="glass-card"
+            className="glass-card download-card scroll-reveal delay-1"
             style={{
               padding: "2.25rem",
               display: "flex",
@@ -96,7 +105,7 @@ export const Downloads: React.FC = () => {
 
           {/* Card 2: Portable Version */}
           <div
-            className="glass-card"
+            className="glass-card download-card scroll-reveal delay-2"
             style={{
               padding: "2.25rem",
               display: "flex",
@@ -162,7 +171,8 @@ export const Downloads: React.FC = () => {
 
         {/* Release Distribution Notice */}
         <div
-          className="glass-card"
+          ref={noticeRef}
+          className={`glass-card download-notice-box scroll-reveal ${noticeRevealed ? "is-revealed" : ""}`}
           style={{
             maxWidth: "960px",
             margin: "0 auto",
@@ -207,6 +217,18 @@ export const Downloads: React.FC = () => {
         @media (max-width: 768px) {
           .download-grid {
             grid-template-columns: 1fr !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .download-notice-box {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.75rem !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .download-card {
+            padding: 1.5rem 1rem !important;
           }
         }
       `}</style>

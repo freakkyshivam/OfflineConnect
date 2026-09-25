@@ -1,7 +1,12 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import { GitCommit, ArrowLeftRight, Radio, MessageSquare, Clock, ShieldAlert, RotateCw } from "lucide-react";
 
 export const HowItWorks: React.FC = () => {
+  const { ref: headerRef, isRevealed: headerRevealed } = useScrollReveal();
+  const { ref: diagramRef, isRevealed: diagramRevealed } = useScrollReveal();
+  const { ref: stepsRef, isRevealed: stepsRevealed } = useScrollReveal();
+
   const steps = [
     {
       num: "01",
@@ -44,7 +49,10 @@ export const HowItWorks: React.FC = () => {
   return (
     <section id="how-it-works">
       <div className="container">
-        <div className="section-header">
+        <div
+          ref={headerRef}
+          className={`section-header scroll-reveal ${headerRevealed ? "is-revealed" : ""}`}
+        >
           <div className="section-tag">
             <GitCommit size={14} />
             <span>Architecture & Flow</span>
@@ -58,7 +66,8 @@ export const HowItWorks: React.FC = () => {
 
         {/* Visual Dual-Phase Protocol Diagram */}
         <div
-          className="glass-card"
+          ref={diagramRef}
+          className={`glass-card protocol-diagram-card scroll-reveal ${diagramRevealed ? "is-revealed" : ""}`}
           style={{
             padding: "2.5rem 2rem",
             marginBottom: "3.5rem",
@@ -93,6 +102,7 @@ export const HowItWorks: React.FC = () => {
           >
             {/* Phase 1: UDP Discovery */}
             <div
+              className="phase-card"
               style={{
                 background: "rgba(0, 0, 0, 0.25)",
                 borderRadius: "0.75rem",
@@ -109,6 +119,7 @@ export const HowItWorks: React.FC = () => {
 
               {/* Node diagram */}
               <div
+                className="node-diagram"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -126,17 +137,26 @@ export const HowItWorks: React.FC = () => {
                   <div style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>192.168.1.15</div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, padding: "0 1rem" }}>
+                {/* Horizontal connector (desktop) */}
+                <div className="node-arrow-horizontal" style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, padding: "0 1rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--accent-blue)", marginBottom: "0.2rem" }}>
                     UDP Broadcast (3s)
                   </span>
-                  <div style={{ width: "100%", height: "2px", background: "var(--accent-blue)", position: "relative" }}>
+                  <div className="network-flow-line" style={{ width: "100%", height: "2px", background: "var(--accent-blue)", position: "relative" }}>
                     <div style={{ position: "absolute", right: 0, top: "-4px", width: 0, height: 0, borderTop: "5px solid transparent", borderBottom: "5px solid transparent", borderLeft: "8px solid var(--accent-blue)" }} />
                     <div style={{ position: "absolute", left: 0, top: "-4px", width: 0, height: 0, borderTop: "5px solid transparent", borderBottom: "5px solid transparent", borderRight: "8px solid var(--accent-blue)" }} />
                   </div>
                   <span style={{ fontSize: "0.68rem", color: "var(--text-dim)", marginTop: "0.2rem" }}>
                     255.255.255.255:4242
                   </span>
+                </div>
+
+                {/* Vertical connector (mobile) */}
+                <div className="node-arrow-vertical" style={{ display: "none", flexDirection: "column", alignItems: "center", gap: "0.2rem" }}>
+                  <span style={{ fontSize: "0.7rem", color: "var(--accent-blue)" }}>UDP Broadcast (3s) · :4242</span>
+                  <div className="network-flow-line" style={{ width: "2px", height: "18px", background: "var(--accent-blue)", position: "relative" }}>
+                    <div style={{ position: "absolute", bottom: 0, left: "-3px", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderTop: "6px solid var(--accent-blue)" }} />
+                  </div>
                 </div>
 
                 <div style={{ textAlign: "center" }}>
@@ -153,6 +173,7 @@ export const HowItWorks: React.FC = () => {
 
             {/* Phase 2: TCP Chat */}
             <div
+              className="phase-card"
               style={{
                 background: "rgba(0, 0, 0, 0.25)",
                 borderRadius: "0.75rem",
@@ -169,6 +190,7 @@ export const HowItWorks: React.FC = () => {
 
               {/* Node diagram */}
               <div
+                className="node-diagram"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -186,17 +208,26 @@ export const HowItWorks: React.FC = () => {
                   <div style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>Client Socket</div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, padding: "0 1rem" }}>
+                {/* Horizontal connector (desktop) */}
+                <div className="node-arrow-horizontal" style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, padding: "0 1rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "#34d399", marginBottom: "0.2rem" }}>
                     Framed TCP Stream (\n)
                   </span>
-                  <div style={{ width: "100%", height: "2px", background: "#34d399", position: "relative" }}>
-                    <div style={{ position: "absolute", right: 0, top: "-4px", width: 0, height: 0, borderTop: "5px solid transparent", borderBottom: "5px solid transparent", borderLeft: "8px solid #34d399)" }} />
-                    <div style={{ position: "absolute", left: 0, top: "-4px", width: 0, height: 0, borderTop: "5px solid transparent", borderBottom: "5px solid transparent", borderRight: "8px solid #34d399)" }} />
+                  <div className="network-flow-line" style={{ width: "100%", height: "2px", background: "#34d399", position: "relative" }}>
+                    <div style={{ position: "absolute", right: 0, top: "-4px", width: 0, height: 0, borderTop: "5px solid transparent", borderBottom: "5px solid transparent", borderLeft: "8px solid #34d399" }} />
+                    <div style={{ position: "absolute", left: 0, top: "-4px", width: 0, height: 0, borderTop: "5px solid transparent", borderBottom: "5px solid transparent", borderRight: "8px solid #34d399" }} />
                   </div>
                   <span style={{ fontSize: "0.68rem", color: "var(--text-dim)", marginTop: "0.2rem" }}>
                     Direct Unicast :8080
                   </span>
+                </div>
+
+                {/* Vertical connector (mobile) */}
+                <div className="node-arrow-vertical" style={{ display: "none", flexDirection: "column", alignItems: "center", gap: "0.2rem" }}>
+                  <span style={{ fontSize: "0.7rem", color: "#34d399" }}>Framed TCP Stream (\n) · :8080</span>
+                  <div className="network-flow-line" style={{ width: "2px", height: "18px", background: "#34d399", position: "relative" }}>
+                    <div style={{ position: "absolute", bottom: 0, left: "-3px", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderTop: "6px solid #34d399" }} />
+                  </div>
                 </div>
 
                 <div style={{ textAlign: "center" }}>
@@ -214,11 +245,14 @@ export const HowItWorks: React.FC = () => {
         </div>
 
         {/* 6-Step Chronological Progression */}
-        <div className="grid-3">
-          {steps.map((step) => (
+        <div
+          ref={stepsRef}
+          className={`grid-3 reveal-group ${stepsRevealed ? "is-revealed" : ""}`}
+        >
+          {steps.map((step, idx) => (
             <div
               key={step.num}
-              className="glass-card"
+              className={`glass-card scroll-reveal delay-${idx + 1}`}
               style={{
                 padding: "1.75rem",
                 position: "relative",
@@ -270,6 +304,28 @@ export const HowItWorks: React.FC = () => {
         @media (max-width: 768px) {
           .protocol-grid {
             grid-template-columns: 1fr !important;
+          }
+          .protocol-diagram-card {
+            padding: 1.75rem 1.25rem !important;
+          }
+        }
+        @media (max-width: 520px) {
+          .node-diagram {
+            flex-direction: column !important;
+            gap: 0.75rem !important;
+            padding: 1rem 0.75rem !important;
+          }
+          .node-arrow-horizontal {
+            display: none !important;
+          }
+          .node-arrow-vertical {
+            display: flex !important;
+          }
+          .protocol-diagram-card {
+            padding: 1.5rem 1rem !important;
+          }
+          .phase-card {
+            padding: 1.25rem 1rem !important;
           }
         }
       `}</style>

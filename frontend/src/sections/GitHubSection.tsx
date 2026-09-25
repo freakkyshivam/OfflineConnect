@@ -1,14 +1,18 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import { PROJECT_CONFIG } from "../config";
 import { Code2, GitFork, BookOpen, ExternalLink, ShieldCheck } from "lucide-react";
 import { GithubIcon } from "../components/GithubIcon";
 
 export const GitHubSection: React.FC = () => {
+  const { ref: cardRef, isRevealed } = useScrollReveal();
+
   return (
     <section id="github">
       <div className="container">
         <div
-          className="glass-card"
+          ref={cardRef}
+          className={`glass-card github-card scroll-reveal ${isRevealed ? "is-revealed" : ""}`}
           style={{
             padding: "3.5rem 2.5rem",
             background: "linear-gradient(180deg, rgba(18, 24, 38, 0.9) 0%, rgba(10, 13, 20, 0.98) 100%)",
@@ -66,7 +70,7 @@ export const GitHubSection: React.FC = () => {
               href={PROJECT_CONFIG.repositoryUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-primary"
+              className="btn btn-primary btn-mobile-full"
               style={{ padding: "0.85rem 1.75rem" }}
             >
               <GithubIcon size={18} />
@@ -78,7 +82,7 @@ export const GitHubSection: React.FC = () => {
               href={`${PROJECT_CONFIG.repositoryUrl}/fork`}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-mobile-full"
               style={{ padding: "0.85rem 1.75rem" }}
             >
               <GitFork size={18} />
@@ -134,6 +138,17 @@ export const GitHubSection: React.FC = () => {
         @media (max-width: 768px) {
           .github-info-grid {
             grid-template-columns: 1fr !important;
+          }
+          .github-card {
+            padding: 2.25rem 1.5rem !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .github-card {
+            padding: 1.75rem 1rem !important;
+          }
+          .github-info-grid {
+            padding: 1rem !important;
           }
         }
       `}</style>

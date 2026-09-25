@@ -1,7 +1,10 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import { BookOpen, Radio, Shield, HeartPulse, SplitSquareVertical } from "lucide-react";
 
 export const NetworkingConcepts: React.FC = () => {
+  const { ref: headerRef, isRevealed: headerRevealed } = useScrollReveal();
+  const { ref: gridRef, isRevealed: gridRevealed } = useScrollReveal();
   const concepts = [
     {
       title: "User Datagram Protocol (UDP)",
@@ -60,7 +63,10 @@ export const NetworkingConcepts: React.FC = () => {
   return (
     <section id="networking" style={{ background: "var(--bg-secondary)" }}>
       <div className="container">
-        <div className="section-header">
+        <div
+          ref={headerRef}
+          className={`section-header scroll-reveal ${headerRevealed ? "is-revealed" : ""}`}
+        >
           <div className="section-tag">
             <BookOpen size={14} />
             <span>Computer Networking Fundamentals</span>
@@ -72,11 +78,14 @@ export const NetworkingConcepts: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid-2">
+        <div
+          ref={gridRef}
+          className={`grid-2 reveal-group ${gridRevealed ? "is-revealed" : ""}`}
+        >
           {concepts.map((c, i) => (
             <div
               key={i}
-              className="glass-card"
+              className={`glass-card scroll-reveal delay-${i + 1}`}
               style={{
                 padding: "2rem",
                 display: "flex",
@@ -84,30 +93,40 @@ export const NetworkingConcepts: React.FC = () => {
                 gap: "1.25rem",
               }}
             >
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+              <div
+                className="concept-header"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "0.75rem",
+                }}
+              >
+                <div style={{ display: "flex", gap: "0.85rem", alignItems: "center", minWidth: 0, flex: "1 1 180px" }}>
                   <div
                     style={{
-                      width: "3rem",
-                      height: "3rem",
+                      width: "2.75rem",
+                      height: "2.75rem",
                       borderRadius: "0.625rem",
                       background: "rgba(255, 255, 255, 0.04)",
                       border: "1px solid rgba(255, 255, 255, 0.08)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      flexShrink: 0,
                     }}
                   >
                     {c.icon}
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: "1.2rem", marginBottom: "0.2rem" }}>{c.title}</h3>
-                    <div style={{ fontSize: "0.825rem", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h3 style={{ fontSize: "1.15rem", marginBottom: "0.2rem", wordBreak: "break-word" }}>{c.title}</h3>
+                    <div style={{ fontSize: "0.825rem", color: "var(--text-dim)", fontFamily: "var(--font-mono)", wordBreak: "break-word" }}>
                       {c.subtitle}
                     </div>
                   </div>
                 </div>
-                <span className="badge badge-blue">{c.badge}</span>
+                <span className="badge badge-blue" style={{ flexShrink: 0 }}>{c.badge}</span>
               </div>
 
               <p style={{ color: "var(--text-muted)", fontSize: "0.925rem", lineHeight: 1.65 }}>

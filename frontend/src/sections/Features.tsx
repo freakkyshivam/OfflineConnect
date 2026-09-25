@@ -1,4 +1,5 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import {
   Radio,
   Wifi,
@@ -13,6 +14,8 @@ import {
 } from "lucide-react";
 
 export const Features: React.FC = () => {
+  const { ref: headerRef, isRevealed: headerRevealed } = useScrollReveal();
+  const { ref: gridRef, isRevealed: gridRevealed } = useScrollReveal();
   const featuresList = [
     {
       icon: <Radio size={22} color="var(--accent-blue)" />,
@@ -89,7 +92,10 @@ export const Features: React.FC = () => {
   return (
     <section id="features" style={{ background: "var(--bg-secondary)" }}>
       <div className="container">
-        <div className="section-header">
+        <div
+          ref={headerRef}
+          className={`section-header scroll-reveal ${headerRevealed ? "is-revealed" : ""}`}
+        >
           <div className="section-tag">
             <Activity size={14} />
             <span>Verified Capabilities</span>
@@ -101,11 +107,14 @@ export const Features: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid-3">
+        <div
+          ref={gridRef}
+          className={`grid-3 reveal-group ${gridRevealed ? "is-revealed" : ""}`}
+        >
           {featuresList.map((feature, idx) => (
             <div
               key={idx}
-              className="glass-card"
+              className={`glass-card scroll-reveal delay-${(idx % 6) + 1}`}
               style={{
                 padding: "1.75rem",
                 display: "flex",

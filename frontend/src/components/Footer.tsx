@@ -1,10 +1,13 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import { PROJECT_CONFIG, DEVELOPER_CONFIG } from "../config";
 import { Radio, ExternalLink } from "lucide-react";
 import { GithubIcon } from "./GithubIcon";
 import { LinkedinIcon } from "./LinkedinIcon";
 
 export const Footer: React.FC = () => {
+  const { ref: footerRef, isRevealed } = useScrollReveal();
+
   return (
     <footer
       style={{
@@ -13,7 +16,10 @@ export const Footer: React.FC = () => {
         padding: "3.5rem 0 2rem 0",
       }}
     >
-      <div className="container">
+      <div
+        ref={footerRef}
+        className={`container scroll-reveal ${isRevealed ? "is-revealed" : ""}`}
+      >
         <div
           style={{
             display: "flex",
@@ -68,7 +74,7 @@ export const Footer: React.FC = () => {
           </div>
 
           {/* Quick Links & Socials */}
-          <div style={{ display: "flex", gap: "3.5rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "3.5rem", flexWrap: "wrap" }} className="footer-links-grid">
             {/* Developer Profiles */}
             <div>
               <div style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: "#ffffff", marginBottom: "0.75rem" }}>
@@ -141,6 +147,7 @@ export const Footer: React.FC = () => {
 
         {/* Bottom Bar: Copyright & Attribution */}
         <div
+          className="footer-bottom-bar"
           style={{
             borderTop: "1px solid rgba(255, 255, 255, 0.05)",
             paddingTop: "1.5rem",
@@ -186,6 +193,28 @@ export const Footer: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 680px) {
+          .footer-links-grid {
+            gap: 2rem !important;
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .footer-bottom-bar {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.75rem !important;
+          }
+        }
+        @media (max-width: 440px) {
+          .footer-links-grid {
+            grid-template-columns: 1fr !important;
+            gap: 1.5rem !important;
+          }
+        }
+      `}</style>
     </footer>
   );
 };

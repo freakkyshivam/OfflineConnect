@@ -1,7 +1,11 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import { AlertTriangle, ShieldCheck, Network, Lock, Smartphone, WifiOff } from "lucide-react";
 
 export const Limitations: React.FC = () => {
+  const { ref: headerRef, isRevealed: headerRevealed } = useScrollReveal();
+  const { ref: gridRef, isRevealed: gridRevealed } = useScrollReveal();
+
   const limitations = [
     {
       title: "Local Subnet Bound",
@@ -38,7 +42,10 @@ export const Limitations: React.FC = () => {
   return (
     <section id="limitations" style={{ background: "var(--bg-secondary)" }}>
       <div className="container">
-        <div className="section-header">
+        <div
+          ref={headerRef}
+          className={`section-header scroll-reveal ${headerRevealed ? "is-revealed" : ""}`}
+        >
           <div className="section-tag" style={{ background: "rgba(245, 158, 11, 0.1)", color: "var(--accent-amber)", borderColor: "rgba(245, 158, 11, 0.25)" }}>
             <AlertTriangle size={14} />
             <span>Technical Scope & Edge Cases</span>
@@ -50,11 +57,14 @@ export const Limitations: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid-3">
+        <div
+          ref={gridRef}
+          className={`grid-3 reveal-group ${gridRevealed ? "is-revealed" : ""}`}
+        >
           {limitations.map((item, idx) => (
             <div
               key={idx}
-              className="glass-card"
+              className={`glass-card scroll-reveal delay-${(idx % 3) + 1}`}
               style={{
                 padding: "1.75rem",
                 display: "flex",

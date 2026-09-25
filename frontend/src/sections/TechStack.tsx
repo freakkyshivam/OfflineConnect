@@ -1,7 +1,10 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import { Cpu, Layers, Terminal, Globe, Shield, Code, Server, AppWindow } from "lucide-react";
 
 export const TechStack: React.FC = () => {
+  const { ref: headerRef, isRevealed: headerRevealed } = useScrollReveal();
+  const { ref: gridRef, isRevealed: gridRevealed } = useScrollReveal();
   const stack = [
     {
       name: "Node.js (v22 LTS)",
@@ -56,7 +59,10 @@ export const TechStack: React.FC = () => {
   return (
     <section id="tech-stack">
       <div className="container">
-        <div className="section-header">
+        <div
+          ref={headerRef}
+          className={`section-header scroll-reveal ${headerRevealed ? "is-revealed" : ""}`}
+        >
           <div className="section-tag">
             <Layers size={14} />
             <span>Under The Hood</span>
@@ -68,11 +74,14 @@ export const TechStack: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid-4">
+        <div
+          ref={gridRef}
+          className={`grid-4 reveal-group ${gridRevealed ? "is-revealed" : ""}`}
+        >
           {stack.map((item, idx) => (
             <div
               key={idx}
-              className="glass-card"
+              className={`glass-card scroll-reveal delay-${(idx % 4) + 1}`}
               style={{
                 padding: "1.5rem",
                 display: "flex",

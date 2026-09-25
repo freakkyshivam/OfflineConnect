@@ -1,7 +1,12 @@
 import React from "react";
+import { useScrollReveal } from "../hooks/useScrollReveal";
 import { PlayCircle, CheckCircle2, Laptop2, Wifi, Power, RotateCw, ArrowRight } from "lucide-react";
 
 export const HowToDemo: React.FC = () => {
+  const { ref: headerRef, isRevealed: headerRevealed } = useScrollReveal();
+  const { ref: stepsRef, isRevealed: stepsRevealed } = useScrollReveal();
+  const { ref: faultRef, isRevealed: faultRevealed } = useScrollReveal();
+
   const steps = [
     {
       num: "Step 1",
@@ -32,7 +37,10 @@ export const HowToDemo: React.FC = () => {
   return (
     <section id="demo">
       <div className="container">
-        <div className="section-header">
+        <div
+          ref={headerRef}
+          className={`section-header scroll-reveal ${headerRevealed ? "is-revealed" : ""}`}
+        >
           <div className="section-tag">
             <PlayCircle size={14} />
             <span>Demonstration Walkthrough</span>
@@ -45,11 +53,15 @@ export const HowToDemo: React.FC = () => {
         </div>
 
         {/* 4 Step Setup Cards */}
-        <div className="grid-4" style={{ marginBottom: "3rem" }}>
+        <div
+          ref={stepsRef}
+          className={`grid-4 reveal-group ${stepsRevealed ? "is-revealed" : ""}`}
+          style={{ marginBottom: "3rem" }}
+        >
           {steps.map((s, i) => (
             <div
               key={i}
-              className="glass-card"
+              className={`glass-card scroll-reveal delay-${i + 1}`}
               style={{
                 padding: "1.75rem",
                 display: "flex",
@@ -86,7 +98,8 @@ export const HowToDemo: React.FC = () => {
 
         {/* The Fault Tolerance Demo Case */}
         <div
-          className="glass-card"
+          ref={faultRef}
+          className={`glass-card fault-tolerance-card scroll-reveal ${faultRevealed ? "is-revealed" : ""}`}
           style={{
             padding: "2rem 2.5rem",
             background: "linear-gradient(180deg, rgba(26, 35, 54, 0.7) 0%, rgba(15, 20, 32, 0.9) 100%)",
@@ -137,8 +150,8 @@ export const HowToDemo: React.FC = () => {
             </div>
 
             {/* Transition Arrow */}
-            <div style={{ display: "flex", justifyContent: "center", color: "var(--accent-blue)" }}>
-              <ArrowRight size={28} />
+            <div className="demo-flow-arrow" style={{ display: "flex", justifyContent: "center", color: "var(--accent-blue)" }}>
+              <ArrowRight size={28} className="demo-arrow-icon" />
             </div>
 
             {/* Box 2: Recovery */}
@@ -170,6 +183,17 @@ export const HowToDemo: React.FC = () => {
         @media (max-width: 768px) {
           .demo-flow-grid {
             grid-template-columns: 1fr !important;
+          }
+          .demo-arrow-icon {
+            transform: rotate(90deg);
+          }
+          .fault-tolerance-card {
+            padding: 1.75rem 1.25rem !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .fault-tolerance-card {
+            padding: 1.5rem 1rem !important;
           }
         }
       `}</style>
