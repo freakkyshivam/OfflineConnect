@@ -20,6 +20,10 @@ import {
   disconnectAllPeers,
   getPeerState,
   onPeerStateChange,
+  setSelfInfo,
+  handleIncomingSocket,
+  handleIncomingTcpData,
+  onChatMessage,
 } from "./tcpClient.js";
 
 import { getDevices, getDevice } from "./deviceStore.js";
@@ -119,6 +123,12 @@ export function startBackend(config: BackendConfig = {}): Promise<BackendInstanc
     const httpPort = config.httpPort ?? DEFAULT_HTTP_PORT;
     const tcpPort = config.tcpPort ?? DEFAULT_TCP_PORT;
     let clientDir = config.clientDir ?? findClientDir();
+
+    setSelfInfo({
+      sessionId: getSessionId(),
+      name: getDeviceName(),
+      tcpPort,
+    });
 
     // If clientDir contains a Vite production build in dist/, serve dist/ instead of source
     if (fs.existsSync(path.join(clientDir, "dist", "index.html"))) {
@@ -259,6 +269,7 @@ export function startBackend(config: BackendConfig = {}): Promise<BackendInstanc
           switch (msg.type) {
             case "set_name": {
               setDeviceName(msg.name);
+              setSelfInfo({ name: getDeviceName() });
               broadcast({
                 type: "self_info",
                 sessionId: getSessionId(),
@@ -335,35 +346,31 @@ export function startBackend(config: BackendConfig = {}): Promise<BackendInstanc
       broadcastDeviceList();
     });
 
-    // TCP Chat Server
-    const tcpServer = startTcpServer(tcpPort, (data: string) => {
-      try {
-        const msg = JSON.parse(data);
-
-        if (msg.type === "chat") {
-          console.log(`Message from ${msg.senderName}: ${msg.text}`);
-
-          const sender = getDevice(msg.senderSessionId);
-          if (sender) {
-            sender.lastSeen = Date.now();
-            sender.online = true;
-          }
-
-          broadcast({
-            type: "incoming_message",
-            id: msg.id,
-            from: {
-              sessionId: msg.senderSessionId,
-              name: msg.senderName,
-            },
-            text: msg.text,
-            timestamp: msg.timestamp,
-          });
-        }
-      } catch {
-        console.log(`Received raw TCP data: ${data}`);
+    // Inbound & outbound chat message listener
+    const unsubChatMessage = onChatMessage((msg) => {
+      const sender = getDevice(msg.senderSessionId);
+      if (sender) {
+        sender.lastSeen = Date.now();
+        sender.online = true;
       }
+
+      broadcast({
+        type: "incoming_message",
+        id: msg.id,
+        from: {
+          sessionId: msg.senderSessionId,
+          name: msg.senderName,
+        },
+        text: msg.text,
+        timestamp: msg.timestamp,
+      });
     });
+
+    // TCP Chat Server (accepts inbound peer connections and framed messages)
+    const tcpServer = startTcpServer(
+      tcpPort,
+      () => {},
+    );
 
     httpServer.on("error", (err) => {
       console.error(`HTTP server error on port ${httpPort}:`, err.message);
@@ -377,6 +384,7 @@ export function startBackend(config: BackendConfig = {}): Promise<BackendInstanc
       const stop = async (): Promise<void> => {
         clearInterval(broadcastInterval);
         unsubPeerState();
+        unsubChatMessage();
 
         for (const client of browserClients) {
           try {

@@ -620,6 +620,14 @@
       chatHistory[senderSessionId] = [];
     }
 
+    // Receiving a message confirms the peer is connected
+    if (peerConnectionStates[senderSessionId] !== "connected") {
+      peerConnectionStates[senderSessionId] = "connected";
+      if (activeChat === senderSessionId) {
+        updateActiveChatStatus();
+      }
+    }
+
     const messageObj = {
       id: msgId,
       text: msg.text,

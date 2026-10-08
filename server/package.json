@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "test": "tsx --test src/__tests__/test.ts src/__tests__/two_device_demo.test.ts",
+    "test": "tsx --test src/__tests__/test.ts src/__tests__/two_device_demo.test.ts src/__tests__/bidirectional.test.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc && node -e \"import('fs').then(fs => fs.copyFileSync('src/electron/preload.cjs', 'dist/electron/preload.cjs'))\"",
     "electron:dev": "npm run build && electron .",
